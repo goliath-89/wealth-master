@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "funds": [
+    { "id": "f1", "name": "ASN Sukuk", "provider": "ASNB", "cat": "Sukuk / bond", "rate": 4.81, "fee": 0.48, "sales": 2.0, "shariah": true, "pidm": false, "col": "s3" },
+    { "id": "f2", "name": "ASB", "provider": "ASNB", "cat": "Fixed price UT", "rate": 5.75, "fee": 0.39, "sales": 0, "shariah": false, "pidm": false, "col": "s6" },
+    { "id": "f3", "name": "Ryt Save Pockets", "provider": "Ryt Bank", "cat": "Bank deposit", "rate": 4.0, "fee": 0, "sales": 0, "shariah": false, "pidm": true, "col": "s8" },
+    { "id": "f4", "name": "No-provider fund", "provider": "", "cat": "Other", "rate": 0, "fee": 0, "sales": 0, "shariah": false, "pidm": false, "col": "s1" },
+    { "id": "f5", "name": "<img src=x onerror=alert(1)> Fund", "provider": "Evil & Co", "cat": "Other", "rate": 1, "fee": 0, "sales": 0, "shariah": false, "pidm": false, "col": "s2" },
+    { "id": "f6", "name": "Empty Fund", "provider": "ASNB", "cat": "Other", "rate": 2, "fee": 0, "sales": 0, "shariah": false, "pidm": false, "col": "s4" }
+  ],
+  "entries": [
+    { "id": "e1", "fundId": "f1", "month": "2026-01", "balance": 50000, "contribution": 0, "income": 200.5, "note": "" },
+    { "id": "e2", "fundId": "f1", "month": "2026-02", "balance": 50200.5, "contribution": 0, "income": 201.3, "note": "" },
+    { "id": "e3", "fundId": "f2", "month": "2026-01", "balance": 9500000, "contribution": 0, "income": -150, "note": "fee adjustment reversal" },
+    { "id": "e4", "fundId": "f3", "month": "2026-01", "balance": 20000, "contribution": 1000, "income": 66.67, "note": "" },
+    { "id": "e5", "fundId": "f4", "month": "2026-01", "balance": 100, "contribution": 100, "income": 0, "note": "" },
+    { "id": "e6", "fundId": "f5", "month": "2026-01", "balance": 500, "contribution": 500, "income": 0, "note": "\"quoted\" & <b>bold</b>" },
+    { "id": "e7", "fundId": "ghost-fund", "month": "2026-01", "balance": 1, "contribution": 0, "income": 0, "note": "orphaned entry, fund was deleted" }
+  ],
+  "settings": { "theme": "dark" }
+}

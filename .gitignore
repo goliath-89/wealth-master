@@ -1,0 +1,12 @@
+node_modules/
+*.log
+
+# Financial data — SEC-1: never committed, ever (R8: public-repo data-leak risk).
+# Wealth Master itself only ever writes to the browser's localStorage / a private
+# Google Sheet, never to this working tree, but these patterns exist as a backstop
+# for any manual export dropped here during testing.
+*.wealthdata.json
+/data/
+/exports/
+*.env
+.env*

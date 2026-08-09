@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm test
+
+  data-scan:
+    # Filename-pattern gate only (SEC-1, R8) — deliberately not content-scanning for
+    # currency-shaped numbers, since tests/fixtures/ legitimately contains synthetic
+    # balances and a naive regex would false-positive on every run.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block committed financial-data files
+        run: |
+          set -e
+          MATCHES=$(git ls-files | grep -E '(^|/)\.env(\.|$)|\.wealthdata\.json$|^(data|exports)/' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "Financial-data-shaped files must never be committed:"
+            echo "$MATCHES"
+            exit 1
+          fi

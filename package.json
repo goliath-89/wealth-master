@@ -1,0 +1,12 @@
+{
+  "name": "wealth-master",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal net worth, forecasting, and debt-intelligence tool. Static, offline-first, no backend.",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\""
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}

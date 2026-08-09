@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="696" viewBox="0 0 680 696" role="img">
+<title>Wealth Master solution architecture</title>
+<desc>Devices load a static app from GitHub Pages. The app runs entirely in the browser with a store, sync engine, calculation engine and chart engine, backed by a localStorage cache. It syncs bidirectionally with a Google Sheet acting as system of record, holding entity tabs and a reference tab. A GitHub Actions job writes reference data into that sheet on a schedule.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<style>
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.th{font-size:14px;font-weight:500}
+.ts{font-size:12px}
+.arr{stroke:#888780;stroke-width:1.5;fill:none}
+.gray-f{fill:#F1EFE8;stroke:#5F5E5A}
+.gray-t{fill:#2C2C2A}.gray-s{fill:#5F5E5A}
+.purple-f{fill:#EEEDFE;stroke:#534AB7}.purple-t{fill:#3C3489}
+.blue-f{fill:#E6F1FB;stroke:#185FA5}.blue-t{fill:#0C447C}
+.teal-f{fill:#E1F5EE;stroke:#0F6E56}.teal-t{fill:#085041}
+.green-f{fill:#EAF3DE;stroke:#3B6D11}.green-t{fill:#27500A}
+</style>
+</defs>
+<rect class="gray-f" x="60" y="40" width="170" height="56" rx="8" stroke-width="0.5"/>
+<text class="th gray-t" x="145" y="62" text-anchor="middle" dominant-baseline="central">Laptop</text>
+<text class="ts gray-s" x="145" y="80" text-anchor="middle" dominant-baseline="central">month-end entry</text>
+<rect class="gray-f" x="255" y="40" width="170" height="56" rx="8" stroke-width="0.5"/>
+<text class="th gray-t" x="340" y="62" text-anchor="middle" dominant-baseline="central">Phone</text>
+<text class="ts gray-s" x="340" y="80" text-anchor="middle" dominant-baseline="central">quick check</text>
+<rect class="gray-f" x="450" y="40" width="170" height="56" rx="8" stroke-width="0.5"/>
+<text class="th gray-t" x="535" y="62" text-anchor="middle" dominant-baseline="central">Tablet</text>
+<text class="ts gray-s" x="535" y="80" text-anchor="middle" dominant-baseline="central">review</text>
+<line x1="145" y1="96" x2="238" y2="126" class="arr" marker-end="url(#arrow)"/>
+<line x1="340" y1="96" x2="340" y2="126" class="arr" marker-end="url(#arrow)"/>
+<line x1="535" y1="96" x2="442" y2="126" class="arr" marker-end="url(#arrow)"/>
+<rect class="gray-f" x="180" y="130" width="320" height="56" rx="8" stroke-width="0.5"/>
+<text class="th gray-t" x="340" y="152" text-anchor="middle" dominant-baseline="central">GitHub Pages</text>
+<text class="ts gray-s" x="340" y="170" text-anchor="middle" dominant-baseline="central">static hosting, code only</text>
+<line x1="340" y1="186" x2="340" y2="216" class="arr" marker-end="url(#arrow)"/>
+<rect class="purple-f" x="40" y="220" width="600" height="190" rx="20" stroke-width="0.5"/>
+<text class="th purple-t" x="340" y="248" text-anchor="middle" dominant-baseline="central">Wealth Master app</text>
+<rect class="blue-f" x="63" y="278" width="128" height="44" rx="8" stroke-width="0.5"/>
+<text class="th blue-t" x="127" y="300" text-anchor="middle" dominant-baseline="central">Store</text>
+<rect class="blue-f" x="205" y="278" width="128" height="44" rx="8" stroke-width="0.5"/>
+<text class="th blue-t" x="269" y="300" text-anchor="middle" dominant-baseline="central">Sync</text>
+<rect class="blue-f" x="347" y="278" width="128" height="44" rx="8" stroke-width="0.5"/>
+<text class="th blue-t" x="411" y="300" text-anchor="middle" dominant-baseline="central">Calc engine</text>
+<rect class="blue-f" x="489" y="278" width="128" height="44" rx="8" stroke-width="0.5"/>
+<text class="th blue-t" x="553" y="300" text-anchor="middle" dominant-baseline="central">Charts</text>
+<rect class="blue-f" x="63" y="340" width="554" height="44" rx="8" stroke-width="0.5"/>
+<text class="th blue-t" x="340" y="362" text-anchor="middle" dominant-baseline="central">localStorage cache — full offline read and write</text>
+<line x1="340" y1="410" x2="340" y2="446" class="arr" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<rect class="teal-f" x="120" y="450" width="440" height="110" rx="20" stroke-width="0.5"/>
+<text class="th teal-t" x="340" y="478" text-anchor="middle" dominant-baseline="central">Google Sheet — system of record</text>
+<rect class="green-f" x="145" y="497" width="190" height="44" rx="8" stroke-width="0.5"/>
+<text class="th green-t" x="240" y="519" text-anchor="middle" dominant-baseline="central">Entity tabs</text>
+<rect class="green-f" x="355" y="497" width="180" height="44" rx="8" stroke-width="0.5"/>
+<text class="th green-t" x="445" y="519" text-anchor="middle" dominant-baseline="central">Reference tab</text>
+<line x1="445" y1="596" x2="445" y2="564" class="arr" marker-end="url(#arrow)"/>
+<rect class="gray-f" x="190" y="600" width="300" height="56" rx="8" stroke-width="0.5"/>
+<text class="th gray-t" x="340" y="622" text-anchor="middle" dominant-baseline="central">GitHub Actions</text>
+<text class="ts gray-s" x="340" y="640" text-anchor="middle" dominant-baseline="central">scheduled rates and FX pull</text>
+</svg>
