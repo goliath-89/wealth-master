@@ -40,7 +40,7 @@ test("theme toggle flips data-theme and persists it to the store", function () {
   assert.equal(doc.documentElement.getAttribute("data-theme"), "dark");
   doc.getElementById("themeBtn").click();
   assert.equal(doc.documentElement.getAttribute("data-theme"), "light");
-  var saved = JSON.parse(app.window.localStorage.getItem("wealthmaster.v3"));
+  var saved = JSON.parse(app.window.localStorage.getItem("wealthmaster.state"));
   assert.equal(saved.settings.theme, "light");
 });
 

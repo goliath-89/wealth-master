@@ -6,10 +6,10 @@
 // one Account per fund (so the fund's `shariah` flag has a home — Account carries
 // shariah in schema v3, Holding does not), one Holding per fund, one Valuation per entry.
 //
-// Two fields don't survive: fund.col (chart colour — P0 ships no charts to colour)
-// and per-fund `pidm` precision (schema v3 only tracks pidmMember on Institution, not
-// Account, despite FR-9.5 describing it as per-account; this migration ORs every
-// fund's pidm flag onto its institution as a best-effort approximation).
+// One field doesn't survive: fund.col (chart colour — P0 ships no charts to colour).
+// Fund Desk's per-fund `pidm` flag maps exactly onto Account.pidmProtected, and also
+// ORs onto the institution's pidmMember: if any fund held there was PIDM protected,
+// that provider is necessarily a member institution.
 (function (root, factory) {
   if (typeof module !== "undefined" && module.exports) {
     module.exports = factory(require("./schema.js"));
@@ -71,6 +71,7 @@
       acct.currency = "MYR";
       acct.shariah = !!f.shariah;
       acct.liquid = true;
+      acct.pidmProtected = !!f.pidm;
       accounts.push(acct);
 
       var hold = newHolding(deviceId);

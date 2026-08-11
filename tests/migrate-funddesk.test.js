@@ -55,6 +55,18 @@ test("pidm flag ORs onto the institution across every fund sharing that provider
   assert.equal(rytBank.pidmMember, true); // f3 (Ryt Bank) has pidm: true
 });
 
+test("Fund Desk's per-fund pidm flag maps directly onto per-account coverage (FR-9.5)", function () {
+  var res = migrated().res;
+  function acctNamed(name) {
+    return res.accounts.filter(function (a) { return a.name === name; })[0];
+  }
+  assert.equal(acctNamed("Ryt Save Pockets").pidmProtected, true);
+  // Every other fixture fund has pidm: false — including ASN Sukuk and ASB, which sit
+  // at the same providers but are unit trusts, not deposits.
+  assert.equal(acctNamed("ASN Sukuk").pidmProtected, false);
+  assert.equal(acctNamed("ASB").pidmProtected, false);
+});
+
 test("a fund with no entries produces a holding but no valuations", function () {
   var res = migrated().res;
   var emptyFundHolding = res.holdings.filter(function (h) { return h.name === "Empty Fund"; })[0];

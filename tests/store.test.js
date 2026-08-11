@@ -14,7 +14,7 @@ test("load() returns a blank state when localStorage is empty", function () {
 
 test("load() falls back to blank state on corrupt JSON, never throws", function () {
   var window = helpers.freshWindow();
-  window.localStorage.setItem("wealthmaster.v3", "{not valid json");
+  window.localStorage.setItem("wealthmaster.state", "{not valid json");
   var lib = helpers.loadLib(window);
   var res;
   assert.doesNotThrow(function () { res = lib.store.load(); });
@@ -87,6 +87,70 @@ test("save() reports failure without throwing when storage quota is exceeded", f
   assert.equal(res.error.name, "QuotaExceededError");
 
   global.localStorage = realStorage;
+});
+
+test("v3 -> v4 migration marks cash accounts at a PIDM member institution as protected", function () {
+  var window = helpers.freshWindow();
+  var lib = helpers.loadLib(window);
+  var v3 = {
+    schemaVersion: 3,
+    institutions: [
+      { id: "i-member", name: "Ryt Bank", pidmMember: true },
+      { id: "i-nonmember", name: "ASNB", pidmMember: false }
+    ],
+    accounts: [
+      { id: "a-cash-member", institutionId: "i-member", class: "cash" },
+      { id: "a-invest-member", institutionId: "i-member", class: "investment" },
+      { id: "a-cash-nonmember", institutionId: "i-nonmember", class: "cash" }
+    ]
+  };
+
+  var out = lib.store.migrate(v3);
+  assert.equal(out.schemaVersion, 4);
+
+  function acct(id) {
+    return out.accounts.filter(function (a) { return a.id === id; })[0];
+  }
+  // A deposit at a member bank is covered...
+  assert.equal(acct("a-cash-member").pidmProtected, true);
+  // ...but an investment sold by that same bank is not, and neither is a deposit
+  // at a non-member. Backfilling optimistically here would silently overstate cover.
+  assert.equal(acct("a-invest-member").pidmProtected, false);
+  assert.equal(acct("a-cash-nonmember").pidmProtected, false);
+});
+
+test("v3 -> v4 migration never overwrites a pidmProtected value already set", function () {
+  var window = helpers.freshWindow();
+  var lib = helpers.loadLib(window);
+  var out = lib.store.migrate({
+    schemaVersion: 3,
+    institutions: [{ id: "i1", name: "Bank", pidmMember: false }],
+    // Owner had already declared this covered; the backfill must respect it (FR-7.8).
+    accounts: [{ id: "a1", institutionId: "i1", class: "investment", pidmProtected: true }]
+  });
+  assert.equal(out.accounts[0].pidmProtected, true);
+});
+
+test("load() recovers state written under the legacy storage key", function () {
+  var window = helpers.freshWindow();
+  var lib = helpers.loadLib(window);
+  window.localStorage.setItem("wealthmaster.v3", JSON.stringify({
+    schemaVersion: 3,
+    institutions: [{ id: "i1", name: "Ryt Bank", pidmMember: true }],
+    accounts: [{ id: "a1", institutionId: "i1", class: "cash" }]
+  }));
+
+  var res = lib.store.load();
+  assert.equal(res.error, null);
+  assert.equal(res.state.schemaVersion, 4, "legacy payload must be migrated forward, not dropped");
+  assert.equal(res.state.accounts.length, 1);
+  assert.equal(res.state.accounts[0].pidmProtected, true);
+});
+
+test("newAccount defaults pidmProtected to false rather than assuming cover", function () {
+  var window = helpers.freshWindow();
+  var lib = helpers.loadLib(window);
+  assert.equal(lib.schema.newAccount("dev-1").pidmProtected, false);
 });
 
 test("softDelete tombstones a record instead of removing it", function () {

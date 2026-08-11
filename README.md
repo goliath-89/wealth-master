@@ -53,5 +53,6 @@ is not a sign of misconfiguration.
    pick the file.
 
 Funds become Holdings (grouped under one Account per provider); monthly entries become
-Valuations. Nothing is overwritten — re-running the import is safe to try, though it will
-create duplicate holdings if the same export is imported twice.
+Valuations. Each fund's PIDM flag carries across to its account's `pidmProtected`.
+Nothing is overwritten — re-running the import is safe to try, though it will create
+duplicate holdings if the same export is imported twice.

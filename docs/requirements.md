@@ -221,7 +221,8 @@ planning, and any form of automated broker connection.
 
 ```
 Institution   id, name, type, pidmMember
-Account       id, institutionId, name, class, currency, shariah, liquid, archived
+Account       id, institutionId, name, class, currency, shariah, liquid, archived,
+              pidmProtected
 Holding       id, accountId, name, instrumentType, rate, feePct, salesPct, unitBased
 Valuation     id, holdingId, period, balance, units, unitPrice, contribution,
               withdrawal, income, note, updatedAt, deviceId, deleted
@@ -236,6 +237,13 @@ Reference     source, key, value, asOf, status
 ```
 
 Every mutable record carries `updatedAt`, `deviceId`, and `deleted` to support FR-7.4/7.5.
+
+PIDM is modelled at two levels because they are distinct facts. `Institution.pidmMember`
+records whether the bank is a PIDM member at all — needed by FR-4.4 to aggregate balances
+across every account at one bank against the RM250,000 limit. `Account.pidmProtected`
+records whether that specific account is actually covered, satisfying FR-9.5. The two
+diverge routinely: a unit trust distributed by a PIDM member bank is not protected, while
+a savings account at the same bank is.
 
 ---
 

@@ -10,7 +10,7 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
 
-  var SCHEMA_VERSION = 3;
+  var SCHEMA_VERSION = 4;
 
   var ENTITY_LISTS = [
     "institutions", "accounts", "holdings", "valuations",
@@ -69,13 +69,22 @@
   }
 
   // Factory helpers — id + tombstone fields only; callers set the domain fields.
+
+  // PIDM is modelled at two levels, because they are different facts:
+  //   Institution.pidmMember  — is this bank a PIDM member institution at all?
+  //   Account.pidmProtected   — is THIS account actually covered?
+  // They diverge routinely: a unit trust sold by a PIDM member bank is not
+  // protected, while a savings account at the same bank is. FR-9.5 asks for
+  // coverage per deposit account; FR-4.4 needs the institution link as well, to
+  // aggregate balances across accounts at one bank against the RM250k limit.
   function newInstitution(deviceId) {
     return stamp({ id: uid(), name: "", type: "", pidmMember: false }, deviceId);
   }
   function newAccount(deviceId) {
     return stamp({
       id: uid(), institutionId: null, name: "", class: "cash",
-      currency: "MYR", shariah: false, liquid: true, archived: false
+      currency: "MYR", shariah: false, liquid: true, archived: false,
+      pidmProtected: false
     }, deviceId);
   }
   function newHolding(deviceId) {

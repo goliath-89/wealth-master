@@ -17,14 +17,35 @@
   var blank = schema.blank;
   var nowIso = schema.nowIso;
 
-  var STORE_KEY = "wealthmaster.v3";
+  // Deliberately NOT versioned — the schema version lives inside the payload and is
+  // handled by the migration ladder below. A version-suffixed key would orphan the
+  // user's data on every bump, which is the exact failure migrations exist to prevent.
+  var STORE_KEY = "wealthmaster.state";
+
+  // Keys written by earlier builds, newest first. Read once on load if STORE_KEY is
+  // empty, then migrated forward and rewritten under STORE_KEY.
+  var LEGACY_KEYS = ["wealthmaster.v3"];
 
   // Each entry migrates state from (version i) -> (version i+1). Applied in order,
   // starting from state.schemaVersion, up to SCHEMA_VERSION. Never delete an entry:
   // old exports/devices must still be able to migrate forward.
   var MIGRATIONS = {
-    // Placeholder for the first real migration once schema v4 exists, e.g.:
-    // 3: function(o) { /* mutate o in place for the v3 -> v4 change */ return o; }
+    // v3 -> v4: PIDM coverage moved from an institution-only flag to a per-account
+    // one (FR-9.5). Backfill honestly rather than optimistically: PIDM protects
+    // deposits, not investments, so only cash accounts at a member institution are
+    // marked protected. Anything else stays false for the owner to confirm.
+    3: function (o) {
+      var memberIds = {};
+      (o.institutions || []).forEach(function (inst) {
+        if (inst && inst.pidmMember) memberIds[inst.id] = true;
+      });
+      (o.accounts || []).forEach(function (acct) {
+        if (acct.pidmProtected === undefined) {
+          acct.pidmProtected = !!memberIds[acct.institutionId] && acct.class === "cash";
+        }
+      });
+      return o;
+    }
   };
 
   function migrate(raw) {
@@ -51,6 +72,11 @@
   function load() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) {
+        for (var i = 0; i < LEGACY_KEYS.length && !raw; i++) {
+          raw = localStorage.getItem(LEGACY_KEYS[i]);
+        }
+      }
       if (!raw) return { state: blank(), error: null };
       return { state: migrate(JSON.parse(raw)), error: null };
     } catch (e) {
@@ -84,6 +110,7 @@
 
   return {
     STORE_KEY: STORE_KEY,
+    LEGACY_KEYS: LEGACY_KEYS,
     MIGRATIONS: MIGRATIONS,
     migrate: migrate,
     load: load,

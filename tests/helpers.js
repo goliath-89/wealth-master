@@ -10,7 +10,7 @@ var ROOT = path.join(__dirname, "..");
 function freshWindow(seedState) {
   var dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/" });
   if (seedState !== undefined) {
-    dom.window.localStorage.setItem("wealthmaster.v3", JSON.stringify(seedState));
+    dom.window.localStorage.setItem("wealthmaster.state", JSON.stringify(seedState));
   }
   return dom.window;
 }
@@ -44,7 +44,7 @@ function loadApp(seedState) {
   var window = dom.window;
 
   if (seedState !== undefined) {
-    window.localStorage.setItem("wealthmaster.v3", JSON.stringify(seedState));
+    window.localStorage.setItem("wealthmaster.state", JSON.stringify(seedState));
   }
 
   var consoleErrors = [];
