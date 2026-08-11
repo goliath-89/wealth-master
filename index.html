@@ -37,9 +37,10 @@ header{
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:99px;letter-spacing:.02em;border:.5px solid var(--line2);color:var(--tx2)}
 .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--tx3)}
 .pill.offline .dot{background:var(--warn)}
+/* 44px minimum on anything tappable — NFR-6. */
 .iconbtn{
-  width:36px;height:36px;border-radius:9px;border:.5px solid var(--line2);
-  background:transparent;color:var(--tx2);font-size:15px;cursor:pointer;
+  width:44px;height:44px;border-radius:10px;border:.5px solid var(--line2);
+  background:transparent;color:var(--tx2);font-size:16px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;transition:.15s;
 }
 .iconbtn:hover{background:var(--surface2);color:var(--tx)}
@@ -55,7 +56,7 @@ header{
 .hr{height:.5px;background:var(--line);border:none;margin:16px 0}
 button,input{font-family:inherit;font-size:14px}
 .btn{
-  min-height:40px;padding:0 15px;border-radius:9px;border:.5px solid var(--line2);
+  min-height:44px;padding:0 16px;border-radius:10px;border:.5px solid var(--line2);
   background:transparent;color:var(--tx);font-weight:500;cursor:pointer;transition:.15s;
   display:inline-flex;align-items:center;justify-content:center;gap:7px;
 }

@@ -44,6 +44,26 @@ test("theme toggle flips data-theme and persists it to the store", function () {
   assert.equal(saved.settings.theme, "light");
 });
 
+test("every tappable control declares a touch target of at least 44px (NFR-6)", function () {
+  var app = helpers.loadApp();
+  var doc = app.window.document;
+  // jsdom does no layout, so getBoundingClientRect is always 0 — assert on the
+  // declared CSS instead, which is what actually drives the rendered size.
+  var css = doc.querySelector("style").textContent;
+
+  function declaredPx(selector, prop) {
+    var rule = css.split(selector + "{")[1];
+    assert.ok(rule, "expected a CSS rule for " + selector);
+    var match = rule.split("}")[0].match(new RegExp(prop + ":\\s*(\\d+(?:\\.\\d+)?)px"));
+    assert.ok(match, "expected " + prop + " on " + selector);
+    return parseFloat(match[1]);
+  }
+
+  assert.ok(declaredPx(".btn", "min-height") >= 44, ".btn must be >= 44px tall");
+  assert.ok(declaredPx(".iconbtn", "height") >= 44, ".iconbtn must be >= 44px tall");
+  assert.ok(declaredPx(".iconbtn", "width") >= 44, ".iconbtn must be >= 44px wide");
+});
+
 test("importing a Fund Desk v1 export via the migrate button updates the rendered counts", function () {
   var app = helpers.loadApp();
   var doc = app.window.document;
