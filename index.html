@@ -117,6 +117,46 @@ button,input{font-family:inherit;font-size:14px}
 @media(min-width:640px){.modal{border-radius:16px;padding-bottom:20px}}
 .modal-t{font-size:16.5px;font-weight:600;margin-bottom:12px}
 .losslist{margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--tx2);line-height:1.7}
+nav{max-width:820px;margin:0 auto;padding:10px 16px 0;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+.tab{
+  min-height:44px;padding:0 14px;border:none;background:transparent;color:var(--tx2);
+  font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:inherit;
+  border-bottom:2px solid transparent;transition:.15s;
+}
+.tab:hover{color:var(--tx)}
+.tab.on{color:var(--tx);border-bottom-color:var(--accent)}
+.view{display:none}
+.view.on{display:block}
+.inst{margin-bottom:14px}
+.inst-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.inst-n{font-size:14.5px;font-weight:600}
+.acct{border:.5px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;background:var(--surface2)}
+.acct-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.acct-n{font-weight:500;font-size:13.5px}
+.hold{display:flex;align-items:center;gap:8px;padding:7px 0 0;margin-top:7px;border-top:.5px solid var(--line);font-size:12.5px;color:var(--tx2);flex-wrap:wrap}
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:2.5px 7px;border-radius:5px;background:var(--surface3);color:var(--tx2)}
+.tag.good{background:rgba(34,181,115,.16);color:#3fd398}
+.tag.mute{opacity:.7}
+html[data-theme="light"] .tag.good{background:#dff3e8;color:#0f6e4a}
+.empty{text-align:center;padding:36px 20px;color:var(--tx3)}
+.empty .et{font-size:14.5px;color:var(--tx2);margin-bottom:4px;font-weight:500}
+.empty .es{font-size:12.5px;margin-bottom:16px}
+label.fl{display:block;font-size:11.5px;font-weight:500;color:var(--tx2);margin-bottom:5px}
+input[type=text],input[type=number],select{
+  width:100%;min-height:44px;padding:9px 12px;border-radius:10px;
+  border:.5px solid var(--line2);background:var(--surface2);color:var(--tx);
+  outline:none;transition:.15s;-webkit-appearance:none;appearance:none;font-size:16px;
+}
+select{background-image:none}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(57,135,229,.15)}
+input[type=checkbox]{width:20px;height:20px;min-height:20px;accent-color:var(--accent);cursor:pointer}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:13px}
+.fitem{min-width:0}
+.chk{display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer;min-height:44px}
+.errbox{background:rgba(226,80,79,.1);border:.5px solid rgba(226,80,79,.3);border-radius:10px;padding:10px 13px;font-size:12.5px;color:var(--tx2);margin-bottom:12px;display:none}
+.errbox.on{display:block}
+.errbox ul{margin:0;padding-left:18px;line-height:1.7}
 .snack{
   position:fixed;left:50%;transform:translateX(-50%) translateY(120px);
   bottom:calc(18px + env(safe-area-inset-bottom));background:var(--surface3);
@@ -135,9 +175,29 @@ button,input{font-family:inherit;font-size:14px}
     <div class="pill" id="filePill"><span class="dot"></span><span id="fileLabel">Not connected</span></div>
     <button class="iconbtn" id="themeBtn" aria-label="Toggle theme" title="Toggle theme">◐</button>
   </div>
+  <nav>
+    <button class="tab on" data-v="accounts">Accounts</button>
+    <button class="tab" data-v="data">Data</button>
+  </nav>
 </header>
 
 <div class="wrap">
+
+<div class="view on" id="v-accounts">
+  <div class="sec">
+    <div class="sec-h">
+      <div class="sec-t">Institutions and accounts</div>
+      <div class="spacer"></div>
+      <button class="btn sm" id="addInstBtn">+ Institution</button>
+    </div>
+    <div id="tree"></div>
+  </div>
+  <div class="sec">
+    <label class="chk"><input type="checkbox" id="showArchived"> Show archived accounts</label>
+  </div>
+</div>
+
+<div class="view" id="v-data">
 
   <div class="sec">
     <div class="sec-h"><div class="sec-t">Store</div></div>
@@ -193,9 +253,11 @@ button,input{font-family:inherit;font-size:14px}
 
   <div class="sec">
     <div class="warnbox">
-      Phase P0 (foundation) — data model, storage, and migration only. No net worth charts, forecasting, or Sheets sync yet; those come in P0 sessions 2&ndash;3 and phase P1. See <code>docs/feature-plan.md</code>.
+      Phase P1 in progress — accounts and holdings are recorded here. Monthly valuations, net worth and charts are still to come. See <code>docs/feature-plan.md</code>.
     </div>
   </div>
+
+</div>
 
 </div>
 
@@ -212,6 +274,129 @@ button,input{font-family:inherit;font-size:14px}
   </div>
 </div>
 
+<div class="modal-bg" id="instModal">
+  <div class="modal">
+    <div class="modal-t" id="instModalT">Add institution</div>
+    <div class="errbox" id="instErr"></div>
+    <div class="fgrid">
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="i_name">Name</label>
+        <input type="text" id="i_name" placeholder="Maybank">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="i_type">Type</label>
+        <select id="i_type">
+          <option value="bank">Bank</option>
+          <option value="fund provider">Fund provider</option>
+          <option value="broker">Broker</option>
+          <option value="government">Government</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="fitem"><label class="chk"><input type="checkbox" id="i_pidm"> PIDM member institution</label></div>
+    </div>
+    <hr class="hr">
+    <div class="row">
+      <button class="btn pri" id="instSave">Save</button>
+      <button class="btn" data-close="instModal">Cancel</button>
+      <div class="spacer"></div>
+      <button class="btn dgr sm" id="instDelete" style="display:none">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="acctModal">
+  <div class="modal">
+    <div class="modal-t" id="acctModalT">Add account</div>
+    <div class="errbox" id="acctErr"></div>
+    <div class="fgrid">
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="a_name">Account name</label>
+        <input type="text" id="a_name" placeholder="Savings">
+      </div>
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="a_inst">Institution</label>
+        <select id="a_inst"></select>
+      </div>
+      <div class="fitem">
+        <label class="fl" for="a_class">Class</label>
+        <select id="a_class">
+          <option value="cash">Cash</option>
+          <option value="investment">Investment</option>
+          <option value="retirement">Retirement</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="fitem">
+        <label class="fl" for="a_cur">Currency</label>
+        <input type="text" id="a_cur" value="MYR" maxlength="3">
+      </div>
+      <div class="fitem"><label class="chk"><input type="checkbox" id="a_shariah"> Shariah-compliant</label></div>
+      <div class="fitem"><label class="chk"><input type="checkbox" id="a_liquid" checked> Liquid</label></div>
+      <div class="fitem"><label class="chk"><input type="checkbox" id="a_pidm"> PIDM protected</label></div>
+      <div class="fitem"><label class="chk"><input type="checkbox" id="a_arch"> Archived</label></div>
+    </div>
+    <p class="note" style="margin-top:10px">PIDM protects deposits, not investments — a unit trust sold by a member bank is not covered.</p>
+    <hr class="hr">
+    <div class="row">
+      <button class="btn pri" id="acctSave">Save</button>
+      <button class="btn" data-close="acctModal">Cancel</button>
+      <div class="spacer"></div>
+      <button class="btn dgr sm" id="acctDelete" style="display:none">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="holdModal">
+  <div class="modal">
+    <div class="modal-t" id="holdModalT">Add holding</div>
+    <div class="errbox" id="holdErr"></div>
+    <div class="fgrid">
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="h_name">Holding name</label>
+        <input type="text" id="h_name" placeholder="ASN Sukuk">
+      </div>
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="h_acct">Account</label>
+        <select id="h_acct"></select>
+      </div>
+      <div class="fitem">
+        <label class="fl" for="h_type">Instrument</label>
+        <select id="h_type">
+          <option value="Money market">Money market</option>
+          <option value="Sukuk / bond">Sukuk / bond</option>
+          <option value="Fixed price UT">Fixed price UT</option>
+          <option value="Bank deposit">Bank deposit</option>
+          <option value="Equity">Equity</option>
+          <option value="ETF">ETF</option>
+          <option value="Crypto">Crypto</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="fitem">
+        <label class="fl" for="h_rate">Advertised rate % p.a.</label>
+        <input type="number" id="h_rate" step="0.01" placeholder="0.00">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="h_fee">Annual fees %</label>
+        <input type="number" id="h_fee" step="0.01" placeholder="0.00">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="h_sales">Sales charge %</label>
+        <input type="number" id="h_sales" step="0.01" placeholder="0.00">
+      </div>
+      <div class="fitem"><label class="chk"><input type="checkbox" id="h_units"> Unit-based</label></div>
+    </div>
+    <hr class="hr">
+    <div class="row">
+      <button class="btn pri" id="holdSave">Save</button>
+      <button class="btn" data-close="holdModal">Cancel</button>
+      <div class="spacer"></div>
+      <button class="btn dgr sm" id="holdDelete" style="display:none">Delete</button>
+    </div>
+  </div>
+</div>
+
 <div class="snack" id="snack"><span id="snackMsg"></span></div>
 
 <script src="js/schema.js"></script>
@@ -220,6 +405,7 @@ button,input{font-family:inherit;font-size:14px}
 <script src="js/import-guard.js"></script>
 <script src="js/csv.js"></script>
 <script src="js/filestore.js"></script>
+<script src="js/entities.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

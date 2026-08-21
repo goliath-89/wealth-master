@@ -144,7 +144,254 @@ function wire(id, fn) {
   if (el) el.onclick = fn;
 }
 
+// ---- accounts view ---------------------------------------------------------
+
+function renderTree() {
+  var E = WM;
+  var institutions = E.live(state.institutions);
+  var showArchived = $("showArchived").checked;
+
+  if (!institutions.length) {
+    $("tree").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">No institutions yet</div>' +
+      '<div class="es">Add the bank, fund provider or broker that holds your money.</div>' +
+      '<button class="btn pri" id="firstInstBtn">Add first institution</button></div></div>';
+    wire("firstInstBtn", function () { openInst(null); });
+    return;
+  }
+
+  var html = institutions.map(function (inst) {
+    var accounts = E.accountsFor(state, inst.id).filter(function (a) {
+      return showArchived || !a.archived;
+    });
+
+    var acctHtml = accounts.map(function (a) {
+      var holdings = E.holdingsFor(state, a.id);
+      var tags = "";
+      if (a.pidmProtected) tags += '<span class="tag good">PIDM</span> ';
+      if (a.shariah) tags += '<span class="tag">Shariah</span> ';
+      if (!a.liquid) tags += '<span class="tag">Illiquid</span> ';
+      if (a.archived) tags += '<span class="tag mute">Archived</span> ';
+
+      var holdHtml = holdings.map(function (h) {
+        return '<div class="hold"><span>' + esc(h.name) + '</span>' +
+          '<span class="tag">' + esc(h.instrumentType || "—") + "</span>" +
+          (h.rate ? '<span>' + esc(String(h.rate)) + "% p.a.</span>" : "") +
+          '<div class="spacer"></div>' +
+          '<button class="btn sm" data-edit-hold="' + esc(h.id) + '">Edit</button></div>';
+      }).join("");
+
+      return '<div class="acct"><div class="acct-h">' +
+        '<span class="acct-n">' + esc(a.name) + "</span>" +
+        '<span class="tag">' + esc(a.class) + "</span>" +
+        (a.currency && a.currency !== "MYR" ? '<span class="tag">' + esc(a.currency) + "</span>" : "") +
+        tags +
+        '<div class="spacer"></div>' +
+        '<button class="btn sm" data-edit-acct="' + esc(a.id) + '">Edit</button>' +
+        '<button class="btn sm" data-add-hold="' + esc(a.id) + '">+ Holding</button>' +
+        "</div>" + holdHtml + "</div>";
+    }).join("");
+
+    return '<div class="inst"><div class="inst-h">' +
+      '<span class="inst-n">' + esc(inst.name) + "</span>" +
+      '<span class="tag">' + esc(inst.type || "—") + "</span>" +
+      (inst.pidmMember ? '<span class="tag good">PIDM member</span>' : "") +
+      '<div class="spacer"></div>' +
+      '<button class="btn sm" data-edit-inst="' + esc(inst.id) + '">Edit</button>' +
+      '<button class="btn sm" data-add-acct="' + esc(inst.id) + '">+ Account</button>' +
+      "</div>" +
+      (acctHtml || '<p class="note" style="margin-bottom:8px">No accounts yet.</p>') +
+      "</div>";
+  }).join("");
+
+  $("tree").innerHTML = html;
+
+  bindAll("[data-edit-inst]", "data-edit-inst", openInst);
+  bindAll("[data-edit-acct]", "data-edit-acct", openAcct);
+  bindAll("[data-edit-hold]", "data-edit-hold", openHold);
+  bindAll("[data-add-acct]", "data-add-acct", function (id) { openAcct(null, id); });
+  bindAll("[data-add-hold]", "data-add-hold", function (id) { openHold(null, id); });
+}
+
+function bindAll(selector, attr, fn) {
+  Array.prototype.forEach.call(document.querySelectorAll(selector), function (el) {
+    el.onclick = function () { fn(el.getAttribute(attr)); };
+  });
+}
+
+// ---- editors ---------------------------------------------------------------
+
+var editing = { inst: null, acct: null, hold: null };
+
+function openModal(id) { $(id).classList.add("on"); }
+function closeModal(id) { $(id).classList.remove("on"); }
+
+function showErrors(boxId, errors) {
+  var box = $(boxId);
+  if (!errors.length) { box.classList.remove("on"); box.innerHTML = ""; return false; }
+  box.innerHTML = "<ul>" + errors.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>";
+  box.classList.add("on");
+  return true;
+}
+
+function options(list, selectedId, labelFn) {
+  return list.map(function (r) {
+    return '<option value="' + esc(r.id) + '"' + (r.id === selectedId ? " selected" : "") + ">" +
+      esc(labelFn ? labelFn(r) : r.name) + "</option>";
+  }).join("");
+}
+
+function openInst(id) {
+  editing.inst = id;
+  var r = id ? WM.byId(state.institutions, id) : null;
+  $("instModalT").textContent = r ? "Edit institution" : "Add institution";
+  $("i_name").value = r ? r.name : "";
+  $("i_type").value = r ? (r.type || "bank") : "bank";
+  $("i_pidm").checked = r ? !!r.pidmMember : false;
+  $("instDelete").style.display = r ? "" : "none";
+  showErrors("instErr", []);
+  openModal("instModal");
+}
+
+$("instSave").onclick = function () {
+  var rec = {
+    id: editing.inst || undefined,
+    name: $("i_name").value.trim(),
+    type: $("i_type").value,
+    pidmMember: $("i_pidm").checked
+  };
+  if (showErrors("instErr", WM.validate("institutions", rec, state))) return;
+  WM.upsert(state, "institutions", rec, deviceId);
+  closeModal("instModal");
+  commit();
+  toast(editing.inst ? "Institution updated" : "Institution added");
+};
+
+$("instDelete").onclick = function () { removeRecord("institutions", editing.inst, "instModal", "Institution"); };
+
+function openAcct(id, institutionId) {
+  editing.acct = id;
+  var r = id ? WM.byId(state.accounts, id) : null;
+  $("acctModalT").textContent = r ? "Edit account" : "Add account";
+  $("a_inst").innerHTML = options(WM.live(state.institutions), r ? r.institutionId : institutionId);
+  $("a_name").value = r ? r.name : "";
+  $("a_class").value = r ? r.class : "cash";
+  $("a_cur").value = r ? r.currency : "MYR";
+  $("a_shariah").checked = r ? !!r.shariah : false;
+  $("a_liquid").checked = r ? !!r.liquid : true;
+  $("a_pidm").checked = r ? !!r.pidmProtected : false;
+  $("a_arch").checked = r ? !!r.archived : false;
+  $("acctDelete").style.display = r ? "" : "none";
+  showErrors("acctErr", []);
+  openModal("acctModal");
+}
+
+$("acctSave").onclick = function () {
+  var rec = {
+    id: editing.acct || undefined,
+    name: $("a_name").value.trim(),
+    institutionId: $("a_inst").value,
+    class: $("a_class").value,
+    currency: $("a_cur").value.trim().toUpperCase(),
+    shariah: $("a_shariah").checked,
+    liquid: $("a_liquid").checked,
+    pidmProtected: $("a_pidm").checked,
+    archived: $("a_arch").checked
+  };
+  if (showErrors("acctErr", WM.validate("accounts", rec, state))) return;
+  WM.upsert(state, "accounts", rec, deviceId);
+  closeModal("acctModal");
+  commit();
+  toast(editing.acct ? "Account updated" : "Account added");
+};
+
+$("acctDelete").onclick = function () { removeRecord("accounts", editing.acct, "acctModal", "Account"); };
+
+function openHold(id, accountId) {
+  editing.hold = id;
+  var r = id ? WM.byId(state.holdings, id) : null;
+  $("holdModalT").textContent = r ? "Edit holding" : "Add holding";
+  $("h_acct").innerHTML = options(WM.live(state.accounts), r ? r.accountId : accountId, function (a) {
+    var inst = WM.byId(state.institutions, a.institutionId);
+    return (inst ? inst.name + " · " : "") + a.name;
+  });
+  $("h_name").value = r ? r.name : "";
+  $("h_type").value = r ? (r.instrumentType || "Money market") : "Money market";
+  $("h_rate").value = r && r.rate ? r.rate : "";
+  $("h_fee").value = r && r.feePct ? r.feePct : "";
+  $("h_sales").value = r && r.salesPct ? r.salesPct : "";
+  $("h_units").checked = r ? !!r.unitBased : false;
+  $("holdDelete").style.display = r ? "" : "none";
+  showErrors("holdErr", []);
+  openModal("holdModal");
+}
+
+$("holdSave").onclick = function () {
+  var rec = {
+    id: editing.hold || undefined,
+    name: $("h_name").value.trim(),
+    accountId: $("h_acct").value,
+    instrumentType: $("h_type").value,
+    rate: parseFloat($("h_rate").value) || 0,
+    feePct: parseFloat($("h_fee").value) || 0,
+    salesPct: parseFloat($("h_sales").value) || 0,
+    unitBased: $("h_units").checked
+  };
+  if (showErrors("holdErr", WM.validate("holdings", rec, state))) return;
+  WM.upsert(state, "holdings", rec, deviceId);
+  closeModal("holdModal");
+  commit();
+  toast(editing.hold ? "Holding updated" : "Holding added");
+};
+
+$("holdDelete").onclick = function () { removeRecord("holdings", editing.hold, "holdModal", "Holding"); };
+
+// Refuses rather than cascading: tombstoning a parent would detach years of history
+// from one tap. The owner archives, or clears the children first.
+function removeRecord(entity, id, modalId, label) {
+  var check = WM.canDelete(state, entity, id);
+  if (!check.ok) {
+    var blocking = Object.keys(check.dependents).filter(function (k) { return check.dependents[k] > 0; });
+    var total = blocking.reduce(function (n, k) { return n + check.dependents[k]; }, 0);
+    var parts = blocking.map(function (k) {
+      return check.dependents[k] + " " + entityLabel(k, check.dependents[k]);
+    });
+    showErrors(modalId === "instModal" ? "instErr" : modalId === "acctModal" ? "acctErr" : "holdErr",
+      ["Cannot delete — " + parts.join(" and ") + (total === 1 ? " still belongs" : " still belong") +
+       " to this record. Remove them first, or archive instead to keep the history."]);
+    return;
+  }
+  WM.softDelete(state[entity], id, deviceId);
+  closeModal(modalId);
+  commit();
+  toast(label + " deleted");
+}
+
+Array.prototype.forEach.call(document.querySelectorAll("[data-close]"), function (b) {
+  b.onclick = function () { closeModal(b.getAttribute("data-close")); };
+});
+Array.prototype.forEach.call(document.querySelectorAll(".modal-bg"), function (bg) {
+  bg.onclick = function (e) { if (e.target === bg) bg.classList.remove("on"); };
+});
+
+$("addInstBtn").onclick = function () { openInst(null); };
+$("showArchived").onchange = renderTree;
+
+Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
+  t.onclick = function () {
+    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (x) {
+      x.classList.toggle("on", x === t);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".view"), function (v) {
+      v.classList.toggle("on", v.id === "v-" + t.getAttribute("data-v"));
+    });
+    window.scrollTo(0, 0);
+  };
+});
+
 function render() {
+  renderTree();
+
   var counts = [
     ["Institutions", liveCount(state.institutions)],
     ["Accounts", liveCount(state.accounts)],

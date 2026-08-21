@@ -2,7 +2,22 @@
 var fs = require("fs");
 var path = require("path");
 var vm = require("vm");
-var JSDOM = require("jsdom").JSDOM;
+var jsdom = require("jsdom");
+var JSDOM = jsdom.JSDOM;
+
+// jsdom implements no layout, so scrollTo and friends report themselves as
+// "not implemented" on its virtual console. That is a gap in the test environment, not a
+// fault in the app, so it is filtered here rather than worked around in app code. Real
+// page errors still surface: only jsdom's own not-implemented notices are dropped.
+function quietConsole() {
+  var vc = new jsdom.VirtualConsole();
+  vc.sendTo(console, { omitJSDOMErrors: true });
+  vc.on("jsdomError", function (err) {
+    if (err && /Not implemented/.test(err.message)) return;
+    console.error(err);
+  });
+  return vc;
+}
 
 var ROOT = path.join(__dirname, "..");
 
@@ -28,14 +43,16 @@ function loadLib(window) {
   delete require.cache[require.resolve("../js/migrate-funddesk.js")];
   delete require.cache[require.resolve("../js/import-guard.js")];
   delete require.cache[require.resolve("../js/csv.js")];
+  delete require.cache[require.resolve("../js/entities.js")];
   var schema = require("../js/schema.js");
   var store = require("../js/store.js");
   var migrateFundDesk = require("../js/migrate-funddesk.js");
   var importGuard = require("../js/import-guard.js");
   var csv = require("../js/csv.js");
+  var entities = require("../js/entities.js");
   return {
     schema: schema, store: store, migrateFundDesk: migrateFundDesk,
-    importGuard: importGuard, csv: csv
+    importGuard: importGuard, csv: csv, entities: entities
   };
 }
 
@@ -47,7 +64,11 @@ function loadApp(seedState) {
   // Strip <script src="..."> tags — jsdom won't fetch local files without a
   // ResourceLoader, so scripts are eval'd manually below in document order instead.
   var htmlNoScripts = html.replace(/<script src="[^"]+"><\/script>\s*/g, "");
-  var dom = new JSDOM(htmlNoScripts, { url: "http://localhost/", runScripts: "dangerously" });
+  var dom = new JSDOM(htmlNoScripts, {
+    url: "http://localhost/",
+    runScripts: "dangerously",
+    virtualConsole: quietConsole()
+  });
   var window = dom.window;
 
   if (seedState !== undefined) {
@@ -60,7 +81,7 @@ function loadApp(seedState) {
   };
 
   ["js/schema.js", "js/store.js", "js/migrate-funddesk.js", "js/import-guard.js",
-   "js/csv.js", "js/filestore.js", "js/app.js"].forEach(function (rel) {
+   "js/csv.js", "js/filestore.js", "js/entities.js", "js/app.js"].forEach(function (rel) {
     var code = fs.readFileSync(path.join(ROOT, rel), "utf8");
     window.eval(code);
   });
