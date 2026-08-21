@@ -41,8 +41,11 @@
     return live(state.holdings).filter(function (h) { return h.accountId === accountId; });
   }
 
-  function valuationsFor(state, holdingId) {
-    return live(state.valuations).filter(function (v) { return v.holdingId === holdingId; });
+  // Valuations attach to a holding or a liability; ids are unique across entities.
+  function valuationsFor(state, subjectId) {
+    return live(state.valuations).filter(function (v) {
+      return v.holdingId === subjectId || v.liabilityId === subjectId;
+    });
   }
 
   // What still points at this record. Used to refuse a delete that would orphan data
@@ -55,7 +58,7 @@
     if (entity === "accounts") {
       return { holdings: holdingsFor(state, id).length };
     }
-    if (entity === "holdings") {
+    if (entity === "holdings" || entity === "liabilities") {
       return { valuations: valuationsFor(state, id).length };
     }
     return {};

@@ -144,6 +144,184 @@ function wire(id, fn) {
   if (el) el.onclick = fn;
 }
 
+// ---- net worth -------------------------------------------------------------
+
+function renderWorth() {
+  var pts = WM.series(state, WM.currentPeriod());
+  if (!pts.length) {
+    $("worthKpis").innerHTML = "";
+    $("staleWrap").style.display = "none";
+    $("worthChart").innerHTML = "";
+    $("worthLines").innerHTML = '<div class="empty"><div class="et">No figures yet</div>' +
+      '<div class="es">Record a month to see what you are worth.</div></div>';
+    return;
+  }
+
+  var now = pts[pts.length - 1];
+  var prev = pts.length > 1 ? pts[pts.length - 2] : null;
+  var change = WM.changeBetween(prev, now);
+
+  var deltaHtml = '<span class="neu">First month recorded</span>';
+  if (change) {
+    var up = change.delta >= 0;
+    deltaHtml = '<span class="' + (up ? "up" : "dn") + '">' + (up ? "▲ " : "▼ ") +
+      esc(fmtRM(Math.abs(change.delta))) + "</span>" +
+      (change.pct === null ? "" : ' <span class="neu">' + esc(Math.abs(change.pct).toFixed(1)) + "%</span>");
+  }
+
+  $("worthKpis").innerHTML =
+    '<div class="kpi"><div class="k">Net worth' + (now.partial ? '<span class="stale-mark">*</span>' : "") +
+      '</div><div class="v">' + esc(fmtRM(now.net)) + '</div><div class="d">' + deltaHtml + "</div></div>" +
+    '<div class="kpi"><div class="k">Assets</div><div class="v">' + esc(fmtRM(now.assets)) + "</div></div>" +
+    '<div class="kpi"><div class="k">Liabilities</div><div class="v">' + esc(fmtRM(now.liabilities)) + "</div></div>" +
+    '<div class="kpi"><div class="k">Liquid</div><div class="v">' + esc(fmtRM(now.liquid)) +
+      '</div><div class="d neu">' + esc(fmtRM(now.illiquid)) + " illiquid</div></div>";
+
+  // Staleness is stated in words, not only in colour — colour must never be the sole
+  // signal (NFR-9).
+  if (now.partial) {
+    var stale = now.lines.filter(function (l) { return l.stale; });
+    $("staleWrap").style.display = "";
+    $("staleNote").innerHTML = "<b>* Carried forward.</b> " + stale.length + " of " + now.lines.length +
+      " figures have not been updated for " + esc(monthLabel(now.period)) + ", so the last known balance is used: " +
+      stale.map(function (l) {
+        return esc(l.name) + " (" + esc(monthLabel(l.sourcePeriod)) + ")";
+      }).join(", ") + ". The total is real but rests partly on older data.";
+  } else {
+    $("staleWrap").style.display = "none";
+  }
+
+  drawWorthChart(pts);
+
+  var holdings = now.lines.filter(function (l) { return l.kind === "holding"; });
+  var liabs = now.lines.filter(function (l) { return l.kind === "liability"; });
+
+  function lineHtml(l, negative) {
+    return '<div class="wline"><div class="wn">' + esc(l.name) +
+      (l.stale ? '<span class="stale-mark" title="carried forward">*</span>' : "") +
+      '<div class="ws' + (l.stale ? " stale" : "") + '">' +
+      (l.stale ? "carried from " + esc(monthLabel(l.sourcePeriod)) : esc(l.accountName || "")) +
+      "</div></div>" +
+      '<div class="wv">' + (negative ? "−" : "") + esc(fmtRM(l.balance)) + "</div></div>";
+  }
+
+  $("worthLines").innerHTML =
+    (holdings.length ? holdings.map(function (l) { return lineHtml(l, false); }).join("") +
+      '<div class="subtot"><span>Assets</span><span class="wv">' + esc(fmtRM(now.assets)) + "</span></div>" : "") +
+    (liabs.length ? '<div style="height:14px"></div>' +
+      liabs.map(function (l) { return lineHtml(l, true); }).join("") +
+      '<div class="subtot"><span>Liabilities</span><span class="wv">−' + esc(fmtRM(now.liabilities)) + "</span></div>" : "") +
+    '<div class="subtot"><span>Net worth</span><span class="wv">' + esc(fmtRM(now.net)) + "</span></div>";
+}
+
+// Hand-rolled SVG: no charting library, so the app stays offline and dependency-free.
+function drawWorthChart(pts) {
+  var el = $("worthChart");
+  if (pts.length < 2) {
+    el.innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
+      "A trend needs at least two months.</div>";
+    return;
+  }
+
+  var W = 720, H = 240, ml = 62, mr = 12, mt = 12, mb = 28;
+  var pw = W - ml - mr, ph = H - mt - mb;
+
+  var vals = pts.map(function (p) { return p.net; });
+  var lo = Math.min.apply(null, vals.concat([0]));
+  var hi = Math.max.apply(null, vals.concat([0]));
+  if (hi === lo) { hi = lo + 1; }
+  var pad = (hi - lo) * 0.12;
+  lo -= pad; hi += pad;
+
+  var X = function (i) { return ml + (pts.length === 1 ? pw / 2 : (i / (pts.length - 1)) * pw); };
+  var Y = function (v) { return mt + ph - ((v - lo) / (hi - lo)) * ph; };
+
+  var body = "";
+  [lo, (lo + hi) / 2, hi].forEach(function (t) {
+    var y = Y(t);
+    body += '<line class="gridline" x1="' + ml + '" y1="' + y.toFixed(1) + '" x2="' + (W - mr) +
+      '" y2="' + y.toFixed(1) + '"></line>';
+    body += '<text class="axis-t" x="' + (ml - 8) + '" y="' + (y + 3.5).toFixed(1) +
+      '" text-anchor="end">' + esc(shortRM(t)) + "</text>";
+  });
+  if (lo < 0 && hi > 0) {
+    body += '<line x1="' + ml + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - mr) + '" y2="' + Y(0).toFixed(1) +
+      '" stroke="currentColor" stroke-width="1" opacity="0.35"></line>';
+  }
+
+  var d = pts.map(function (p, i) { return X(i).toFixed(1) + "," + Y(p.net).toFixed(1); }).join(" L");
+  body += '<path d="M' + d + '" fill="none" stroke="var(--accent)" stroke-width="2" ' +
+    'stroke-linejoin="round" stroke-linecap="round"></path>';
+
+  // A carried-forward month is drawn hollow, so the chart shows which points are
+  // estimates rather than entries.
+  pts.forEach(function (p, i) {
+    var cx = X(i).toFixed(1), cy = Y(p.net).toFixed(1);
+    body += p.partial
+      ? '<circle cx="' + cx + '" cy="' + cy + '" r="3.4" fill="var(--bg)" stroke="var(--warn)" stroke-width="2"></circle>'
+      : '<circle cx="' + cx + '" cy="' + cy + '" r="3" fill="var(--accent)"></circle>';
+  });
+
+  var step = Math.max(1, Math.ceil(pts.length / 6));
+  pts.forEach(function (p, i) {
+    if (i % step !== 0 && i !== pts.length - 1) return;
+    body += '<text class="axis-t" x="' + X(i).toFixed(1) + '" y="' + (H - 8) +
+      '" text-anchor="middle">' + esc(monthLabel(p.period)) + "</text>";
+  });
+
+  el.innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
+    'role="img" aria-label="Net worth trend">' + body + "</svg>";
+}
+
+function shortRM(n) {
+  var abs = Math.abs(n);
+  var sign = n < 0 ? "−" : "";
+  if (abs >= 1000000) return sign + "RM " + (abs / 1000000).toFixed(1) + "m";
+  if (abs >= 1000) return sign + "RM " + Math.round(abs / 1000) + "k";
+  return sign + "RM " + Math.round(abs);
+}
+
+// ---- liabilities -----------------------------------------------------------
+
+function renderLiabilities() {
+  var list = WM.live(state.liabilities);
+  if (!list.length) {
+    $("liabList").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">No liabilities</div>' +
+      '<div class="es">Add a mortgage, car loan or card to include debt in net worth.</div></div></div>';
+    return;
+  }
+  var period = WM.currentPeriod();
+  $("liabList").innerHTML = list.map(function (l) {
+    var pos = WM.positionFor(state, l.id, period);
+    return '<div class="acct"><div class="acct-h">' +
+      '<span class="acct-n">' + esc(l.name) + "</span>" +
+      '<span class="tag">' + esc(l.type || "—") + "</span>" +
+      '<span class="tag">' + (l.rateBasis === "flat" ? "Flat rate" : "Reducing") + "</span>" +
+      '<div class="spacer"></div>' +
+      '<span class="wv">' + (pos ? esc(fmtRM(pos.balance)) + (pos.stale ? '<span class="stale-mark">*</span>' : "") : "—") + "</span>" +
+      '<button class="btn sm" data-edit-liab="' + esc(l.id) + '">Edit</button>' +
+      "</div></div>";
+  }).join("");
+  bindAll("[data-edit-liab]", "data-edit-liab", openLiab);
+}
+
+function openLiab(id) {
+  editing.liab = id;
+  var r = id ? WM.byId(state.liabilities, id) : null;
+  $("liabModalT").textContent = r ? "Edit liability" : "Add liability";
+  $("l_name").value = r ? r.name : "";
+  $("l_type").value = r ? (r.type || "mortgage") : "mortgage";
+  $("l_basis").value = r ? (r.rateBasis || "reducing") : "reducing";
+  $("l_principal").value = r ? WM.formatAmount(r.principal) : "";
+  $("l_rate").value = r && r.ratePct ? r.ratePct : "";
+  $("l_tenure").value = r && r.tenureMonths ? r.tenureMonths : "";
+  $("l_instalment").value = r ? WM.formatAmount(r.instalment) : "";
+  $("liabDelete").style.display = r ? "" : "none";
+  showErrors("liabErr", []);
+  openModal("liabModal");
+}
+
 // ---- month entry -----------------------------------------------------------
 
 function fmtRM(n) {
@@ -166,9 +344,31 @@ function holdingsForEntry() {
   });
 }
 
+// One row per thing that needs a monthly figure: holdings get four fields, liabilities
+// just an outstanding balance.
+function monthSubjects() {
+  var subjects = holdingsForEntry().map(function (h) {
+    var acct = WM.byId(state.accounts, h.accountId);
+    var inst = acct ? WM.byId(state.institutions, acct.institutionId) : null;
+    return {
+      kind: "holding", id: h.id, name: h.name,
+      context: (inst ? inst.name + " · " : "") + (acct ? acct.name : ""),
+      fields: WM.AMOUNT_FIELDS
+    };
+  });
+  WM.live(state.liabilities).forEach(function (l) {
+    subjects.push({
+      kind: "liability", id: l.id, name: l.name,
+      context: l.type || "liability",
+      fields: ["balance"]
+    });
+  });
+  return subjects;
+}
+
 function renderMonth() {
   var period = $("periodPick").value;
-  var holdings = holdingsForEntry();
+  var holdings = monthSubjects();
 
   if (!holdings.length) {
     $("monthRows").innerHTML = '<div class="card"><div class="empty">' +
@@ -180,13 +380,14 @@ function renderMonth() {
   $("monthActions").style.display = "";
 
   $("monthRows").innerHTML = holdings.map(function (h) {
-    var acct = WM.byId(state.accounts, h.accountId);
-    var inst = acct ? WM.byId(state.institutions, acct.institutionId) : null;
     var existing = WM.isPeriod(period) ? WM.valuationFor(state, h.id, period) : null;
     var prior = WM.isPeriod(period) ? WM.lastRecordedBefore(state, h.id, period) : null;
 
-    var fields = WM.AMOUNT_FIELDS.map(function (f) {
-      var label = { balance: "Closing balance", contribution: "Added", withdrawal: "Withdrawn", income: "Income" }[f];
+    var fields = h.fields.map(function (f) {
+      var label = {
+        balance: h.kind === "liability" ? "Outstanding balance" : "Closing balance",
+        contribution: "Added", withdrawal: "Withdrawn", income: "Income"
+      }[f];
       var stored = existing && existing[f] !== null && existing[f] !== undefined ? existing[f] : null;
       return '<div><label for="m_' + esc(h.id) + "_" + f + '">' + label + "</label>" +
         '<input type="text" inputmode="decimal" id="m_' + esc(h.id) + "_" + f + '"' +
@@ -194,9 +395,9 @@ function renderMonth() {
         ' placeholder="—"></div>';
     }).join("");
 
-    return '<div class="mrow" id="mrow_' + esc(h.id) + '">' +
+    return '<div class="mrow' + (h.kind === "liability" ? " liab" : "") + '" id="mrow_' + esc(h.id) + '">' +
       '<div class="mrow-h"><span class="mrow-n">' + esc(h.name) + "</span>" +
-      '<span class="mrow-s">' + esc((inst ? inst.name + " · " : "") + (acct ? acct.name : "")) + "</span></div>" +
+      '<span class="mrow-s">' + esc(h.context) + "</span></div>" +
       '<div class="mgrid">' + fields + "</div>" +
       (prior ? '<div class="prev">Last recorded: ' + esc(fmtRM(prior.balance)) +
         " in " + esc(monthLabel(prior.period)) + "</div>" : "") +
@@ -236,9 +437,9 @@ function wireAmountFields() {
 
 $("saveMonthBtn").onclick = function () {
   var period = $("periodPick").value;
-  var rows = holdingsForEntry().map(function (h) {
-    var row = { holdingId: h.id };
-    WM.AMOUNT_FIELDS.forEach(function (f) {
+  var rows = monthSubjects().map(function (h) {
+    var row = h.kind === "liability" ? { liabilityId: h.id } : { holdingId: h.id };
+    h.fields.forEach(function (f) {
       var el = $("m_" + h.id + "_" + f);
       row[f] = el ? el.value : "";
     });
@@ -372,7 +573,7 @@ function bindAll(selector, attr, fn) {
 
 // ---- editors ---------------------------------------------------------------
 
-var editing = { inst: null, acct: null, hold: null };
+var editing = { inst: null, acct: null, hold: null, liab: null };
 
 function openModal(id) { $(id).classList.add("on"); }
 function closeModal(id) { $(id).classList.remove("on"); }
@@ -507,7 +708,9 @@ function removeRecord(entity, id, modalId, label) {
     var parts = blocking.map(function (k) {
       return check.dependents[k] + " " + entityLabel(k, check.dependents[k]);
     });
-    showErrors(modalId === "instModal" ? "instErr" : modalId === "acctModal" ? "acctErr" : "holdErr",
+    // Derived, not a hardcoded chain: a new modal previously fell through to the
+    // holdings error box, so the refusal appeared nowhere and the delete looked inert.
+    showErrors(modalId.replace("Modal", "Err"),
       ["Cannot delete — " + parts.join(" and ") + (total === 1 ? " still belongs" : " still belong") +
        " to this record. Remove them first, or archive instead to keep the history."]);
     return;
@@ -524,6 +727,35 @@ Array.prototype.forEach.call(document.querySelectorAll("[data-close]"), function
 Array.prototype.forEach.call(document.querySelectorAll(".modal-bg"), function (bg) {
   bg.onclick = function (e) { if (e.target === bg) bg.classList.remove("on"); };
 });
+
+$("liabSave").onclick = function () {
+  var principal = WM.parseAmount($("l_principal").value);
+  var instalment = WM.parseAmount($("l_instalment").value);
+  var errors = [];
+  if (principal.error) errors.push("Original principal must be a number");
+  if (instalment.error) errors.push("Monthly instalment must be a number");
+
+  var rec = {
+    id: editing.liab || undefined,
+    name: $("l_name").value.trim(),
+    type: $("l_type").value,
+    rateBasis: $("l_basis").value,
+    principal: principal.value,
+    ratePct: parseFloat($("l_rate").value) || 0,
+    tenureMonths: parseInt($("l_tenure").value, 10) || 0,
+    instalment: instalment.value
+  };
+  errors = errors.concat(WM.validate("liabilities", rec, state));
+  if (showErrors("liabErr", errors)) return;
+
+  WM.upsert(state, "liabilities", rec, deviceId);
+  closeModal("liabModal");
+  commit();
+  toast(editing.liab ? "Liability updated" : "Liability added");
+};
+
+$("liabDelete").onclick = function () { removeRecord("liabilities", editing.liab, "liabModal", "Liability"); };
+$("addLiabBtn").onclick = function () { openLiab(null); };
 
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
@@ -542,8 +774,10 @@ Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
 
 function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
+  renderWorth();
   renderMonth();
   renderTree();
+  renderLiabilities();
 
   var counts = [
     ["Institutions", liveCount(state.institutions)],

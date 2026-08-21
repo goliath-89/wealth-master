@@ -106,7 +106,9 @@ test("v3 -> v4 migration marks cash accounts at a PIDM member institution as pro
   };
 
   var out = lib.store.migrate(v3);
-  assert.equal(out.schemaVersion, 4);
+  // Assert against the current version rather than a literal, so a later bump does not
+  // break a test about PIDM backfill.
+  assert.equal(out.schemaVersion, lib.schema.SCHEMA_VERSION);
 
   function acct(id) {
     return out.accounts.filter(function (a) { return a.id === id; })[0];
@@ -142,9 +144,36 @@ test("load() recovers state written under the legacy storage key", function () {
 
   var res = lib.store.load();
   assert.equal(res.error, null);
-  assert.equal(res.state.schemaVersion, 4, "legacy payload must be migrated forward, not dropped");
+  assert.equal(res.state.schemaVersion, lib.schema.SCHEMA_VERSION,
+    "legacy payload must be migrated all the way forward, not dropped");
   assert.equal(res.state.accounts.length, 1);
   assert.equal(res.state.accounts[0].pidmProtected, true);
+});
+
+test("v4 -> v5 migration gives existing valuations an explicit liabilityId of null", function () {
+  var window = helpers.freshWindow();
+  var lib = helpers.loadLib(window);
+  var out = lib.store.migrate({
+    schemaVersion: 4,
+    valuations: [{ id: "v1", holdingId: "h1", period: "2026-08", balance: 100 }]
+  });
+  assert.equal(out.schemaVersion, lib.schema.SCHEMA_VERSION);
+  assert.equal(out.valuations[0].liabilityId, null, "explicit null keeps the shape uniform for CSV");
+  assert.equal(out.valuations[0].holdingId, "h1", "the existing link must survive");
+  assert.equal(out.valuations[0].balance, 100);
+});
+
+test("migrating a v3 payload runs every step of the ladder in order", function () {
+  var window = helpers.freshWindow();
+  var lib = helpers.loadLib(window);
+  var out = lib.store.migrate({
+    schemaVersion: 3,
+    institutions: [{ id: "i1", name: "Bank", pidmMember: true }],
+    accounts: [{ id: "a1", institutionId: "i1", class: "cash" }],
+    valuations: [{ id: "v1", holdingId: "h1", period: "2026-01", balance: 5 }]
+  });
+  assert.equal(out.accounts[0].pidmProtected, true, "v3->v4 ran");
+  assert.equal(out.valuations[0].liabilityId, null, "v4->v5 ran");
 });
 
 test("newAccount defaults pidmProtected to false rather than assuming cover", function () {

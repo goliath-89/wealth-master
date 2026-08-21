@@ -167,7 +167,7 @@ test("PIDM cover is shown per account, independently of the institution", functi
   assert.equal(tree.indexOf("PIDM</span>"), -1);
 });
 
-test("switching tabs shows exactly one view at a time, opening on Month", function () {
+test("switching tabs shows exactly one view at a time, opening on Net worth", function () {
   var app = helpers.loadApp();
   var doc = app.window.document;
 
@@ -177,7 +177,11 @@ test("switching tabs shows exactly one view at a time, opening on Month", functi
     }).map(function (v) { return v.id; });
   }
 
-  assert.deepEqual(onViews(), ["v-month"], "month-end entry is the screen used most");
+  // S2: the weekly phone check is "what am I worth", so that is the landing screen.
+  assert.deepEqual(onViews(), ["v-worth"]);
+
+  doc.querySelector('.tab[data-v="month"]').click();
+  assert.deepEqual(onViews(), ["v-month"]);
 
   doc.querySelector('.tab[data-v="accounts"]').click();
   assert.deepEqual(onViews(), ["v-accounts"]);

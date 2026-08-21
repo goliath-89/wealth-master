@@ -72,20 +72,26 @@
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
   }
 
-  function valuationFor(state, holdingId, period) {
+  // Subject = a holding or a liability. Ids are unique across entities, so one lookup
+  // serves both and existing callers need no change.
+  function isSubject(v, subjectId) {
+    return v.holdingId === subjectId || v.liabilityId === subjectId;
+  }
+
+  function valuationFor(state, subjectId, period) {
     var list = state.valuations || [];
     for (var i = 0; i < list.length; i++) {
-      if (!list[i].deleted && list[i].holdingId === holdingId && list[i].period === period) return list[i];
+      if (!list[i].deleted && isSubject(list[i], subjectId) && list[i].period === period) return list[i];
     }
     return null;
   }
 
   // Most recent non-deleted valuation strictly before `period`, for showing last known
   // balance as context while entering the new one.
-  function lastRecordedBefore(state, holdingId, period) {
+  function lastRecordedBefore(state, subjectId, period) {
     var best = null;
     (state.valuations || []).forEach(function (v) {
-      if (v.deleted || v.holdingId !== holdingId) return;
+      if (v.deleted || !isSubject(v, subjectId)) return;
       if (v.period >= period) return;
       if (v.balance === null || v.balance === undefined) return;
       if (!best || v.period > best.period) best = v;
@@ -112,7 +118,8 @@
   // Clearing every field on an existing entry removes it — otherwise the store would
   // accumulate rows that assert nothing. Returns { action, record }.
   function upsertValuation(state, entry, deviceId) {
-    var existing = valuationFor(state, entry.holdingId, entry.period);
+    var subjectId = entry.holdingId || entry.liabilityId;
+    var existing = valuationFor(state, subjectId, entry.period);
     var empty = isEmptyEntry(entry);
 
     if (empty) {
@@ -126,7 +133,8 @@
     var target = existing;
     if (!target) {
       target = schema.newValuation(deviceId);
-      target.holdingId = entry.holdingId;
+      target.holdingId = entry.holdingId || null;
+      target.liabilityId = entry.liabilityId || null;
       target.period = entry.period;
       state.valuations.push(target);
     }
@@ -150,7 +158,12 @@
     }
 
     rows.forEach(function (row) {
-      var entry = { holdingId: row.holdingId, period: period, note: row.note };
+      var entry = {
+        holdingId: row.holdingId || null,
+        liabilityId: row.liabilityId || null,
+        period: period,
+        note: row.note
+      };
       var bad = null;
       AMOUNT_FIELDS.forEach(function (f) {
         var parsed = parseAmount(row[f]);
@@ -158,7 +171,11 @@
         entry[f] = parsed.value;
       });
       if (bad) {
-        result.errors.push({ holdingId: row.holdingId, field: bad, message: "Not a number" });
+        result.errors.push({
+          holdingId: row.holdingId || row.liabilityId,
+          field: bad,
+          message: "Not a number"
+        });
         return;
       }
       var res = upsertValuation(state, entry, deviceId);

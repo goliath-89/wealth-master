@@ -45,6 +45,17 @@
         }
       });
       return o;
+    },
+
+    // v4 -> v5: valuations can now describe a liability as well as a holding, so a
+    // liability carries a monthly outstanding balance rather than one static figure.
+    // Existing rows are all holdings; the field is set explicitly rather than left
+    // undefined so the shape is uniform for export and CSV.
+    4: function (o) {
+      (o.valuations || []).forEach(function (v) {
+        if (v.liabilityId === undefined) v.liabilityId = null;
+      });
+      return o;
     }
   };
 

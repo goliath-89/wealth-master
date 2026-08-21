@@ -10,7 +10,7 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
 
-  var SCHEMA_VERSION = 4;
+  var SCHEMA_VERSION = 5;
 
   var ENTITY_LISTS = [
     "institutions", "accounts", "holdings", "valuations",
@@ -93,10 +93,14 @@
       rate: 0, feePct: 0, salesPct: 0, unitBased: false
     }, deviceId);
   }
+  // A valuation records one subject's position for one period. Exactly one of holdingId
+  // or liabilityId is set: liabilities need a monthly outstanding balance for the same
+  // reason holdings do, or a net worth trend would show debt as a flat line while assets
+  // moved. Amounts default to null — not recorded, which is not the same as zero.
   function newValuation(deviceId) {
     return stamp({
-      id: uid(), holdingId: null, period: "", balance: 0, units: null,
-      unitPrice: null, contribution: 0, withdrawal: 0, income: 0, note: ""
+      id: uid(), holdingId: null, liabilityId: null, period: "", balance: null, units: null,
+      unitPrice: null, contribution: null, withdrawal: null, income: null, note: ""
     }, deviceId);
   }
   function newAsset(deviceId) {
