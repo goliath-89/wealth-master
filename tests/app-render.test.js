@@ -28,10 +28,14 @@ test("rendered KPI counts reflect seeded state and exclude tombstoned records", 
   assert.equal(holdingsCount, "1");
 });
 
-test("sync status pill reads Offline in P0 (no sync engine built yet)", function () {
+test("a browser without the File System Access API falls back to manual export", function () {
+  // jsdom has no showSaveFilePicker, so this exercises the Safari/Firefox path.
   var app = helpers.loadApp();
-  var label = app.window.document.getElementById("syncLabel").textContent;
-  assert.equal(label, "Offline");
+  var doc = app.window.document;
+  assert.equal(doc.getElementById("fileLabel").textContent, "Manual export");
+  assert.ok(doc.getElementById("exportNowBtn"), "must offer a manual export button");
+  // The warning has to be explicit that the cache is not a safe home for the only copy.
+  assert.match(doc.getElementById("fileNote").textContent, /cache, not a safe place/);
 });
 
 test("theme toggle flips data-theme and persists it to the store", function () {
@@ -62,6 +66,95 @@ test("every tappable control declares a touch target of at least 44px (NFR-6)", 
   assert.ok(declaredPx(".btn", "min-height") >= 44, ".btn must be >= 44px tall");
   assert.ok(declaredPx(".iconbtn", "height") >= 44, ".iconbtn must be >= 44px tall");
   assert.ok(declaredPx(".iconbtn", "width") >= 44, ".iconbtn must be >= 44px wide");
+});
+
+// Drives the app's own file-input handler with a stubbed FileReader, exercising the
+// real import path rather than calling the guard directly.
+function importIntoApp(app, inputId, text) {
+  var doc = app.window.document;
+  var input = doc.getElementById(inputId);
+  var original = app.window.FileReader;
+  app.window.FileReader = function () {
+    this.readAsText = function () { this.result = text; this.onload(); };
+  };
+  Object.defineProperty(input, "files", { value: [{}], configurable: true });
+  input.onchange();
+  app.window.FileReader = original;
+}
+
+test("importing a stale file is blocked behind a warning naming what would be lost", function () {
+  var window = helpers.freshWindow();
+  var l = helpers.loadLib(window);
+
+  var local = l.schema.blank();
+  local.holdings.push({ id: "h1", updatedAt: "2026-08-10T10:00:00.000Z", deviceId: "dev-laptop", deleted: false });
+  local.valuations.push({ id: "v1", updatedAt: "2026-08-10T10:00:00.000Z", deviceId: "dev-laptop", deleted: false });
+
+  var incoming = l.schema.blank();
+  incoming.holdings.push({ id: "h1", updatedAt: "2026-08-07T10:00:00.000Z", deviceId: "dev-phone", deleted: false });
+
+  var app = helpers.loadApp(local);
+  var doc = app.window.document;
+  importIntoApp(app, "fileIn", JSON.stringify(incoming));
+
+  assert.ok(doc.getElementById("importModal").classList.contains("on"), "warning modal must open");
+  var body = doc.getElementById("importModalBody").textContent;
+  assert.match(body, /dev-phone/, "must name the source device");
+  assert.match(body, /3 days older/, "must state how stale the file is");
+  assert.match(body, /discards 2 changes/, "must state the number of local changes at risk");
+  // Counts of one must read as English, not "1 holdings".
+  assert.match(body, /1 holding(?!s)/);
+  assert.match(body, /1 valuation(?!s)/);
+
+  // Nothing may be written until the owner confirms.
+  var stillLocal = JSON.parse(app.window.localStorage.getItem("wealthmaster.state"));
+  assert.equal(stillLocal.valuations.length, 1, "local data must survive an unconfirmed import");
+});
+
+test("cancelling a stale import leaves local data untouched", function () {
+  var window = helpers.freshWindow();
+  var l = helpers.loadLib(window);
+  var local = l.schema.blank();
+  local.holdings.push({ id: "h1", updatedAt: "2026-08-10T10:00:00.000Z", deviceId: "dev-laptop", deleted: false });
+
+  var app = helpers.loadApp(local);
+  var doc = app.window.document;
+  importIntoApp(app, "fileIn", JSON.stringify(l.schema.blank()));
+
+  doc.getElementById("importCancel").click();
+  assert.equal(doc.getElementById("importModal").classList.contains("on"), false);
+  var after = JSON.parse(app.window.localStorage.getItem("wealthmaster.state"));
+  assert.equal(after.holdings.length, 1);
+});
+
+test("confirming a stale import replaces state, as the owner explicitly chose", function () {
+  var window = helpers.freshWindow();
+  var l = helpers.loadLib(window);
+  var local = l.schema.blank();
+  local.holdings.push({ id: "h1", updatedAt: "2026-08-10T10:00:00.000Z", deviceId: "dev-laptop", deleted: false });
+
+  var app = helpers.loadApp(local);
+  var doc = app.window.document;
+  importIntoApp(app, "fileIn", JSON.stringify(l.schema.blank()));
+  doc.getElementById("importConfirm").click();
+
+  var after = JSON.parse(app.window.localStorage.getItem("wealthmaster.state"));
+  assert.equal(after.holdings.length, 0);
+  assert.equal(doc.querySelectorAll("#kpis .v")[2].textContent, "0");
+});
+
+test("a safe import applies immediately with no warning", function () {
+  var window = helpers.freshWindow();
+  var l = helpers.loadLib(window);
+  var incoming = l.schema.blank();
+  incoming.holdings.push({ id: "h9", updatedAt: "2026-08-11T10:00:00.000Z", deviceId: "dev-phone", deleted: false });
+
+  var app = helpers.loadApp(); // empty local store
+  var doc = app.window.document;
+  importIntoApp(app, "fileIn", JSON.stringify(incoming));
+
+  assert.equal(doc.getElementById("importModal").classList.contains("on"), false);
+  assert.equal(doc.querySelectorAll("#kpis .v")[2].textContent, "1");
 });
 
 test("importing a Fund Desk v1 export via the migrate button updates the rendered counts", function () {

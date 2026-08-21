@@ -27,11 +27,16 @@ function loadLib(window) {
   delete require.cache[require.resolve("../js/store.js")];
   delete require.cache[require.resolve("../js/migrate-funddesk.js")];
   delete require.cache[require.resolve("../js/import-guard.js")];
+  delete require.cache[require.resolve("../js/csv.js")];
   var schema = require("../js/schema.js");
   var store = require("../js/store.js");
   var migrateFundDesk = require("../js/migrate-funddesk.js");
   var importGuard = require("../js/import-guard.js");
-  return { schema: schema, store: store, migrateFundDesk: migrateFundDesk, importGuard: importGuard };
+  var csv = require("../js/csv.js");
+  return {
+    schema: schema, store: store, migrateFundDesk: migrateFundDesk,
+    importGuard: importGuard, csv: csv
+  };
 }
 
 // Loads the real index.html into jsdom and evals the app's own <script src> files
@@ -54,7 +59,8 @@ function loadApp(seedState) {
     consoleErrors.push(Array.prototype.slice.call(arguments).join(" "));
   };
 
-  ["js/schema.js", "js/store.js", "js/migrate-funddesk.js", "js/app.js"].forEach(function (rel) {
+  ["js/schema.js", "js/store.js", "js/migrate-funddesk.js", "js/import-guard.js",
+   "js/csv.js", "js/filestore.js", "js/app.js"].forEach(function (rel) {
     var code = fs.readFileSync(path.join(ROOT, rel), "utf8");
     window.eval(code);
   });
