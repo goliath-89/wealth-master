@@ -167,12 +167,21 @@ test("PIDM cover is shown per account, independently of the institution", functi
   assert.equal(tree.indexOf("PIDM</span>"), -1);
 });
 
-test("switching tabs shows one view at a time", function () {
+test("switching tabs shows exactly one view at a time, opening on Month", function () {
   var app = helpers.loadApp();
   var doc = app.window.document;
-  assert.ok(doc.getElementById("v-accounts").classList.contains("on"));
+
+  function onViews() {
+    return Array.prototype.filter.call(doc.querySelectorAll(".view"), function (v) {
+      return v.classList.contains("on");
+    }).map(function (v) { return v.id; });
+  }
+
+  assert.deepEqual(onViews(), ["v-month"], "month-end entry is the screen used most");
+
+  doc.querySelector('.tab[data-v="accounts"]').click();
+  assert.deepEqual(onViews(), ["v-accounts"]);
 
   doc.querySelector('.tab[data-v="data"]').click();
-  assert.ok(doc.getElementById("v-data").classList.contains("on"));
-  assert.equal(doc.getElementById("v-accounts").classList.contains("on"), false);
+  assert.deepEqual(onViews(), ["v-data"]);
 });

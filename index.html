@@ -157,6 +157,15 @@ input[type=checkbox]{width:20px;height:20px;min-height:20px;accent-color:var(--a
 .errbox{background:rgba(226,80,79,.1);border:.5px solid rgba(226,80,79,.3);border-radius:10px;padding:10px 13px;font-size:12.5px;color:var(--tx2);margin-bottom:12px;display:none}
 .errbox.on{display:block}
 .errbox ul{margin:0;padding-left:18px;line-height:1.7}
+.mrow{border:.5px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;background:var(--surface)}
+.mrow-h{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.mrow-n{font-weight:500;font-size:13.5px}
+.mrow-s{font-size:11.5px;color:var(--tx3)}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.mgrid label{font-size:11px;color:var(--tx2);display:block;margin-bottom:4px}
+.mgrid input{min-height:44px;font-size:16px}
+.mrow.bad input.badfield{border-color:var(--bad);box-shadow:0 0 0 3px rgba(226,80,79,.15)}
+.prev{font-size:11px;color:var(--tx3);margin-top:4px}
 .snack{
   position:fixed;left:50%;transform:translateX(-50%) translateY(120px);
   bottom:calc(18px + env(safe-area-inset-bottom));background:var(--surface3);
@@ -176,14 +185,36 @@ input[type=checkbox]{width:20px;height:20px;min-height:20px;accent-color:var(--a
     <button class="iconbtn" id="themeBtn" aria-label="Toggle theme" title="Toggle theme">◐</button>
   </div>
   <nav>
-    <button class="tab on" data-v="accounts">Accounts</button>
+    <button class="tab on" data-v="month">Month</button>
+    <button class="tab" data-v="accounts">Accounts</button>
     <button class="tab" data-v="data">Data</button>
   </nav>
 </header>
 
 <div class="wrap">
 
-<div class="view on" id="v-accounts">
+<div class="view on" id="v-month">
+  <div class="sec">
+    <div class="sec-h">
+      <div class="sec-t">Month-end entry</div>
+      <div class="spacer"></div>
+      <input type="month" id="periodPick" style="width:auto;min-width:150px">
+    </div>
+    <div class="errbox" id="monthErr"></div>
+    <div id="monthRows"></div>
+    <div class="row" id="monthActions" style="margin-top:14px;display:none">
+      <button class="btn pri" id="saveMonthBtn">Save month</button>
+      <span class="note" id="monthSummary"></span>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="warnbox">
+      Leave a field blank if you have not got the figure — blank means <b>not recorded</b>, which is different from zero. Only balance is needed for net worth; contributions and income let the app work out what you actually earned.
+    </div>
+  </div>
+</div>
+
+<div class="view" id="v-accounts">
   <div class="sec">
     <div class="sec-h">
       <div class="sec-t">Institutions and accounts</div>
@@ -406,6 +437,7 @@ input[type=checkbox]{width:20px;height:20px;min-height:20px;accent-color:var(--a
 <script src="js/csv.js"></script>
 <script src="js/filestore.js"></script>
 <script src="js/entities.js"></script>
+<script src="js/valuations.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -144,6 +144,132 @@ function wire(id, fn) {
   if (el) el.onclick = fn;
 }
 
+// ---- month entry -----------------------------------------------------------
+
+function fmtRM(n) {
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  return "RM " + Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function monthLabel(period) {
+  if (!WM.isPeriod(period)) return period || "";
+  var names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return names[parseInt(period.slice(5, 7), 10) - 1] + " " + period.slice(0, 4);
+}
+
+// Holdings whose account is neither archived nor tombstoned. Archived accounts drop out
+// of entry but keep their history (FR-1.5).
+function holdingsForEntry() {
+  return WM.live(state.holdings).filter(function (h) {
+    var a = WM.byId(state.accounts, h.accountId);
+    return a && !a.deleted && !a.archived;
+  });
+}
+
+function renderMonth() {
+  var period = $("periodPick").value;
+  var holdings = holdingsForEntry();
+
+  if (!holdings.length) {
+    $("monthRows").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">Nothing to record yet</div>' +
+      '<div class="es">Add an institution, an account and a holding first.</div></div></div>';
+    $("monthActions").style.display = "none";
+    return;
+  }
+  $("monthActions").style.display = "";
+
+  $("monthRows").innerHTML = holdings.map(function (h) {
+    var acct = WM.byId(state.accounts, h.accountId);
+    var inst = acct ? WM.byId(state.institutions, acct.institutionId) : null;
+    var existing = WM.isPeriod(period) ? WM.valuationFor(state, h.id, period) : null;
+    var prior = WM.isPeriod(period) ? WM.lastRecordedBefore(state, h.id, period) : null;
+
+    var fields = WM.AMOUNT_FIELDS.map(function (f) {
+      var label = { balance: "Closing balance", contribution: "Added", withdrawal: "Withdrawn", income: "Income" }[f];
+      var val = existing && existing[f] !== null && existing[f] !== undefined ? existing[f] : "";
+      return '<div><label for="m_' + esc(h.id) + "_" + f + '">' + label + "</label>" +
+        '<input type="text" inputmode="decimal" id="m_' + esc(h.id) + "_" + f + '"' +
+        ' data-hold="' + esc(h.id) + '" data-field="' + f + '" value="' + esc(String(val)) + '"' +
+        ' placeholder="—"></div>';
+    }).join("");
+
+    return '<div class="mrow" id="mrow_' + esc(h.id) + '">' +
+      '<div class="mrow-h"><span class="mrow-n">' + esc(h.name) + "</span>" +
+      '<span class="mrow-s">' + esc((inst ? inst.name + " · " : "") + (acct ? acct.name : "")) + "</span></div>" +
+      '<div class="mgrid">' + fields + "</div>" +
+      (prior ? '<div class="prev">Last recorded: ' + esc(fmtRM(prior.balance)) +
+        " in " + esc(monthLabel(prior.period)) + "</div>" : "") +
+      "</div>";
+  }).join("");
+
+  var recorded = holdings.filter(function (h) {
+    return WM.isPeriod(period) && WM.valuationFor(state, h.id, period);
+  }).length;
+  $("monthSummary").textContent = recorded + " of " + holdings.length + " recorded for " + monthLabel(period);
+}
+
+$("saveMonthBtn").onclick = function () {
+  var period = $("periodPick").value;
+  var rows = holdingsForEntry().map(function (h) {
+    var row = { holdingId: h.id };
+    WM.AMOUNT_FIELDS.forEach(function (f) {
+      var el = $("m_" + h.id + "_" + f);
+      row[f] = el ? el.value : "";
+    });
+    return row;
+  });
+
+  var res = WM.applyMonth(state, period, rows, deviceId);
+  var saved = res.created + res.updated;
+
+  // Save first — commit() re-renders these rows from state, so anything marked on the
+  // DOM beforehand would be wiped, along with the text the owner actually typed.
+  if (saved || res.deleted) commit();
+
+  Array.prototype.forEach.call(document.querySelectorAll(".mrow"), function (el) {
+    el.classList.remove("bad");
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".mgrid input"), function (el) {
+    el.classList.remove("badfield");
+  });
+
+  if (res.errors.length) {
+    // Point at the offending field, and put the rejected text back so it can be
+    // corrected rather than retyped from memory.
+    res.errors.forEach(function (e) {
+      if (!e.holdingId) return;
+      var row = $("mrow_" + e.holdingId);
+      if (row) row.classList.add("bad");
+      var field = $("m_" + e.holdingId + "_" + e.field);
+      if (!field) return;
+      field.classList.add("badfield");
+      var typed = rows.filter(function (r) { return r.holdingId === e.holdingId; })[0];
+      if (typed) field.value = typed[e.field];
+    });
+    showErrors("monthErr", res.errors.map(function (e) {
+      var h = e.holdingId ? WM.byId(state.holdings, e.holdingId) : null;
+      return h ? h.name + ": " + e.message + " in " + e.field : e.message;
+    }));
+  } else {
+    showErrors("monthErr", []);
+  }
+
+  if (saved || res.deleted) {
+    var parts = [];
+    if (saved) parts.push(saved + " saved");
+    if (res.deleted) parts.push(res.deleted + " cleared");
+    if (res.errors.length) parts.push(res.errors.length + " skipped");
+    toast(parts.join(", ") + " for " + monthLabel(period));
+  } else if (res.errors.length) {
+    toast("Nothing saved — " + res.errors.length + " row(s) need fixing");
+  } else {
+    toast("Nothing to save");
+  }
+};
+
+$("periodPick").onchange = renderMonth;
+
 // ---- accounts view ---------------------------------------------------------
 
 function renderTree() {
@@ -390,6 +516,8 @@ Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
 });
 
 function render() {
+  if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
+  renderMonth();
   renderTree();
 
   var counts = [
