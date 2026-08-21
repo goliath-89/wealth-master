@@ -32,8 +32,12 @@ Go to <https://console.cloud.google.com/auth/overview> and complete the setup pr
 
 - **App name:** `Wealth Master`
 - **User support email:** your own address
-- **Audience / User type:** **External**
-  (Internal is only available to Google Workspace organisations.)
+- **Audience / User type:** **External** — this is not a choice.
+  **Internal** requires the project to belong to a Google Cloud Organization, which only
+  exists under Google Workspace. A personal Gmail account has no organisation, so the
+  option is unavailable. External does *not* mean public: combined with **Testing**
+  status and a single test user (step 4), only your own account can authorise the app.
+  Privacy comes from the test-user list and the `drive.file` scope, not from this field.
 - **Developer contact:** your own address
 
 ## 4. Add yourself as a test user
@@ -108,5 +112,17 @@ Receipts Tracker sheets remain invisible to it.
 
 Access tokens live in memory only and are never written to localStorage (SEC-5). They
 expire after roughly an hour, after which the app requests a fresh one silently while
-your Google session is active. There are no refresh tokens in this flow, so the seven-day
-refresh-token expiry that applies to Testing-status apps is not a concern here.
+your Google session is active.
+
+**Expect to re-consent about once a week.** Testing status expires an authorisation seven
+days after consent, so the Google popup reappears periodically. This is an interruption,
+not data loss — nothing is lost from the Sheet or the local cache, and the offline cache
+keeps working regardless.
+
+Publishing the app to **In production** removes the seven-day expiry, and because
+`drive.file` is non-sensitive that does not require a verification review. The trade-off
+is that any Google account could then sign in. That is not a data-exposure risk — under
+`drive.file` another user's session can only ever touch a spreadsheet created in *their*
+Drive, never yours — but it does put your project's API quota within reach of strangers
+who find the client ID in this public repo. Staying in Testing is the tighter default and
+is the recommendation here.

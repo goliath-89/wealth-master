@@ -3,6 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--
+  SEC-9: connections restricted to Google APIs only. Everything defaults to 'none'
+  and is opened up one directive at a time.
+
+  script-src deliberately omits 'unsafe-inline' — every script here is an external
+  file, so an injected <script> tag cannot execute. Keep it that way: adding an
+  inline script would force 'unsafe-inline' and undo most of this policy's value.
+  style-src does allow it, for the single <style> block below; static hosting gives
+  us no way to issue a nonce.
+
+  The accounts.google.com and *.googleapis.com entries are for the Identity Services
+  client and the Sheets calls landing in P0.5/P0.6. They are listed now so sync does
+  not fail in a way that looks like a bug in the sync code.
+
+  frame-ancestors cannot be set from a meta tag and GitHub Pages cannot set response
+  headers, so this page is not protected against framing. Accepted for now: the app
+  holds no session cookie, and a framed copy has no access to another origin's
+  localStorage.
+-->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self' https://accounts.google.com https://apis.google.com;
+  style-src 'self' 'unsafe-inline';
+  connect-src 'self' https://sheets.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com;
+  frame-src https://accounts.google.com;
+  img-src 'self' data:;
+  font-src 'self';
+  base-uri 'none';
+  form-action 'none';
+  object-src 'none'">
+<meta name="referrer" content="no-referrer">
 <title>Wealth Master</title>
 <style>
 :root{
