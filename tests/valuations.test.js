@@ -36,12 +36,72 @@ test("thousands separators and a leading RM are accepted, as written on a statem
   assert.equal(v.parseAmount("-150").value, -150, "negative income must survive");
 });
 
+test("the minus is read whether it sits before or after the currency", function () {
+  var v = setup().v;
+  assert.equal(v.parseAmount("-RM 150").value, -150);
+  assert.equal(v.parseAmount("RM -150").value, -150);
+});
+
 test("nonsense is an error rather than a silent zero", function () {
   var v = setup().v;
   var bad = v.parseAmount("abc");
   assert.equal(bad.error, "not a number");
   assert.equal(bad.value, null);
   assert.equal(v.parseAmount("12.3.4").error, "not a number");
+});
+
+// --- display formatting -----------------------------------------------------
+
+test("amounts display as currency with thousands separators", function () {
+  var v = setup().v;
+  assert.equal(v.formatAmount(5000), "RM 5,000");
+  assert.equal(v.formatAmount(50000), "RM 50,000");
+  assert.equal(v.formatAmount(9500000), "RM 9,500,000");
+});
+
+test("cents show only when there are cents, so round figures stay clean", function () {
+  var v = setup().v;
+  assert.equal(v.formatAmount(166.67), "RM 166.67");
+  assert.equal(v.formatAmount(1234.5), "RM 1,234.50");
+  assert.equal(v.formatAmount(5000), "RM 5,000", "no .00 padding on a round balance");
+});
+
+test("a negative amount keeps the minus in front of the currency", function () {
+  var v = setup().v;
+  assert.equal(v.formatAmount(-150), "-RM 150");
+});
+
+test("zero formats as a real figure, and blank formats as empty", function () {
+  var v = setup().v;
+  assert.equal(v.formatAmount(0), "RM 0");
+  assert.equal(v.formatAmount(null), "");
+  assert.equal(v.formatAmount(undefined), "");
+});
+
+test("anything formatAmount produces can be parsed back to the same number", function () {
+  var v = setup().v;
+  // The round trip is what makes formatting safe: a field that displays a value it
+  // cannot read back would silently stop saving.
+  [0, 5000, 50000, 9500000, 166.67, 1234.5, -150, -9500000.25, 0.01].forEach(function (n) {
+    var round = v.parseAmount(v.formatAmount(n));
+    assert.equal(round.error, null, "formatted " + n + " must parse");
+    assert.equal(round.value, n, "round trip must preserve " + n);
+  });
+});
+
+test("rawAmount gives plain digits for editing, with no separators", function () {
+  var v = setup().v;
+  assert.equal(v.rawAmount(50000), "50000");
+  assert.equal(v.rawAmount(166.67), "166.67");
+  assert.equal(v.rawAmount(-150), "-150");
+  assert.equal(v.rawAmount(null), "");
+});
+
+test("a lone minus sign or stray currency symbol is an error, not zero", function () {
+  var v = setup().v;
+  assert.equal(v.parseAmount("-").error, "not a number");
+  assert.equal(v.parseAmount("RM").error, "not a number");
+  assert.equal(v.parseAmount("5O,000").error, "not a number", "letter O among digits is a typo, not a value");
 });
 
 // --- periods ----------------------------------------------------------------

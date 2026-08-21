@@ -159,7 +159,77 @@ test("re-opening a saved month shows the stored figures for editing", function (
 
   doc.getElementById("periodPick").value = "2026-08";
   doc.getElementById("periodPick").onchange();
-  assert.equal(doc.getElementById("m_" + f.h1.id + "_balance").value, "50000");
+  assert.equal(doc.getElementById("m_" + f.h1.id + "_balance").value, "RM 50,000",
+    "at rest the figure reads as currency");
+});
+
+test("a field shows plain digits while being edited and reformats on leaving it", function () {
+  var f = seeded();
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+  doc.getElementById("periodPick").value = "2026-08";
+  doc.getElementById("periodPick").onchange();
+
+  var field = doc.getElementById("m_" + f.h1.id + "_balance");
+  field.value = "5000";
+  field.onblur();
+  assert.equal(field.value, "RM 5,000", "typing 5000 leaves the field formatted");
+
+  field.onfocus();
+  assert.equal(field.value, "5000", "editing gets plain digits back, not separators");
+
+  field.value = "166.67";
+  field.onblur();
+  assert.equal(field.value, "RM 166.67", "cents are kept");
+});
+
+test("an unparseable entry is left exactly as typed on blur, not blanked", function () {
+  var f = seeded();
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+
+  var field = doc.getElementById("m_" + f.h1.id + "_balance");
+  field.value = "5O,000"; // letter O
+  field.onblur();
+  assert.equal(field.value, "5O,000", "the mistake must stay visible to be corrected");
+});
+
+test("a formatted field still saves correctly, and an unblurred one does too", function () {
+  var f = seeded();
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+  doc.getElementById("periodPick").value = "2026-08";
+  doc.getElementById("periodPick").onchange();
+
+  var a = doc.getElementById("m_" + f.h1.id + "_balance");
+  a.value = "5000";
+  a.onblur(); // formatted to "RM 5,000"
+  // Second field left mid-edit, as if Save were clicked without tabbing away.
+  doc.getElementById("m_" + f.h2.id + "_balance").value = "2000";
+  doc.getElementById("saveMonthBtn").click();
+
+  var s = savedState(app);
+  var v1 = s.valuations.filter(function (v) { return v.holdingId === f.h1.id; })[0];
+  var v2 = s.valuations.filter(function (v) { return v.holdingId === f.h2.id; })[0];
+  assert.equal(v1.balance, 5000, "the formatted value round-trips");
+  assert.equal(v2.balance, 2000, "an unblurred raw value saves too");
+});
+
+test("blank stays blank through focus and blur, and records nothing", function () {
+  var f = seeded();
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+  doc.getElementById("periodPick").value = "2026-08";
+  doc.getElementById("periodPick").onchange();
+
+  var field = doc.getElementById("m_" + f.h1.id + "_contribution");
+  field.onfocus();
+  field.onblur();
+  assert.equal(field.value, "", "an untouched blank must not become RM 0");
+
+  doc.getElementById("m_" + f.h1.id + "_balance").value = "100";
+  doc.getElementById("saveMonthBtn").click();
+  assert.equal(savedState(app).valuations[0].contribution, null);
 });
 
 test("editing a saved month updates in place rather than duplicating", function () {

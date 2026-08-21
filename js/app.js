@@ -187,10 +187,10 @@ function renderMonth() {
 
     var fields = WM.AMOUNT_FIELDS.map(function (f) {
       var label = { balance: "Closing balance", contribution: "Added", withdrawal: "Withdrawn", income: "Income" }[f];
-      var val = existing && existing[f] !== null && existing[f] !== undefined ? existing[f] : "";
+      var stored = existing && existing[f] !== null && existing[f] !== undefined ? existing[f] : null;
       return '<div><label for="m_' + esc(h.id) + "_" + f + '">' + label + "</label>" +
         '<input type="text" inputmode="decimal" id="m_' + esc(h.id) + "_" + f + '"' +
-        ' data-hold="' + esc(h.id) + '" data-field="' + f + '" value="' + esc(String(val)) + '"' +
+        ' data-hold="' + esc(h.id) + '" data-field="' + f + '" value="' + esc(WM.formatAmount(stored)) + '"' +
         ' placeholder="—"></div>';
     }).join("");
 
@@ -203,10 +203,35 @@ function renderMonth() {
       "</div>";
   }).join("");
 
+  wireAmountFields();
+
   var recorded = holdings.filter(function (h) {
     return WM.isPeriod(period) && WM.valuationFor(state, h.id, period);
   }).length;
   $("monthSummary").textContent = recorded + " of " + holdings.length + " recorded for " + monthLabel(period);
+}
+
+// Formatted while at rest, plain digits while being edited. Formatting on blur rather
+// than on every keystroke keeps the caret where the owner put it — live reformatting
+// has to reposition the caret around inserted separators, and gets it wrong often
+// enough to be worse than the problem it solves. A field left mid-edit still saves,
+// because parseAmount reads the raw form too.
+function wireAmountFields() {
+  Array.prototype.forEach.call(document.querySelectorAll(".mgrid input"), function (el) {
+    el.onfocus = function () {
+      var parsed = WM.parseAmount(el.value);
+      if (parsed.error === null) el.value = WM.rawAmount(parsed.value);
+      if (el.select) el.select();
+    };
+    el.onblur = function () {
+      var parsed = WM.parseAmount(el.value);
+      // Leave an unparseable value exactly as typed — it is about to be flagged, and
+      // blanking it would hide the mistake.
+      if (parsed.error) return;
+      el.value = WM.formatAmount(parsed.value);
+      el.classList.remove("badfield");
+    };
+  });
 }
 
 $("saveMonthBtn").onclick = function () {

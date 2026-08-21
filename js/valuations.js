@@ -17,18 +17,42 @@
 
   var AMOUNT_FIELDS = ["balance", "contribution", "withdrawal", "income"];
 
-  // "" -> null (not recorded). "0" -> 0. Thousands separators and a leading RM are
-  // tolerated because that is how the figures appear on a statement.
-  // Returns { value, error }.
+  // "" -> null (not recorded). "0" -> 0. Currency decoration and thousands separators are
+  // stripped wherever they appear, so both "RM -150" and "-RM 150" read back correctly —
+  // this has to accept anything formatAmount can produce, or a field would stop being
+  // saveable the moment it was formatted. Returns { value, error }.
   function parseAmount(raw) {
     if (raw === null || raw === undefined) return { value: null, error: null };
     if (typeof raw === "number") return isNaN(raw) ? { value: null, error: "not a number" } : { value: raw, error: null };
     var s = String(raw).trim();
     if (s === "") return { value: null, error: null };
-    s = s.replace(/^RM\s*/i, "").replace(/,/g, "");
+    s = s.replace(/rm/ig, "").replace(/,/g, "").replace(/\s+/g, "");
+    if (s === "" || s === "-") return { value: null, error: "not a number" };
     if (!/^-?\d*\.?\d+$/.test(s)) return { value: null, error: "not a number" };
     var n = parseFloat(s);
     return isNaN(n) ? { value: null, error: "not a number" } : { value: n, error: null };
+  }
+
+  // The display form: "RM 5,000", "RM 166.67", "-RM 150". Cents appear only when there
+  // are cents, so a round balance is not padded with noise. Must stay readable by
+  // parseAmount — the round trip is asserted in the tests.
+  function formatAmount(n) {
+    if (n === null || n === undefined || n === "" || isNaN(n)) return "";
+    var num = Number(n);
+    var abs = Math.abs(num);
+    var hasCents = Math.round(abs * 100) % 100 !== 0;
+    var body = abs.toLocaleString("en-MY", {
+      minimumFractionDigits: hasCents ? 2 : 0,
+      maximumFractionDigits: 2
+    });
+    return (num < 0 ? "-" : "") + "RM " + body;
+  }
+
+  // What goes into the field while it is being edited: plain digits, so the numeric
+  // keypad works and a cursor is not fighting inserted separators.
+  function rawAmount(n) {
+    if (n === null || n === undefined || n === "" || isNaN(n)) return "";
+    return String(Number(n));
   }
 
   function isPeriod(p) {
@@ -148,6 +172,8 @@
   return {
     AMOUNT_FIELDS: AMOUNT_FIELDS,
     parseAmount: parseAmount,
+    formatAmount: formatAmount,
+    rawAmount: rawAmount,
     isPeriod: isPeriod,
     prevPeriod: prevPeriod,
     currentPeriod: currentPeriod,
