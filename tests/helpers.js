@@ -26,10 +26,12 @@ function loadLib(window) {
   delete require.cache[require.resolve("../js/schema.js")];
   delete require.cache[require.resolve("../js/store.js")];
   delete require.cache[require.resolve("../js/migrate-funddesk.js")];
+  delete require.cache[require.resolve("../js/import-guard.js")];
   var schema = require("../js/schema.js");
   var store = require("../js/store.js");
   var migrateFundDesk = require("../js/migrate-funddesk.js");
-  return { schema: schema, store: store, migrateFundDesk: migrateFundDesk };
+  var importGuard = require("../js/import-guard.js");
+  return { schema: schema, store: store, migrateFundDesk: migrateFundDesk, importGuard: importGuard };
 }
 
 // Loads the real index.html into jsdom and evals the app's own <script src> files

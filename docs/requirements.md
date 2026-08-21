@@ -215,6 +215,30 @@ planning, and any form of automated broker connection.
 | FR-9.5 | PIDM coverage status per deposit account | Must |
 | FR-9.6 | MYR as base currency, with foreign holdings converted at a recorded rate | Should |
 
+### FR-10 Document import and extraction
+
+Every module that records figures accepts a file upload, so numbers can be pulled from
+statements rather than retyped. All parsing happens in the browser — no document is ever
+uploaded to a server or a third-party service (G6, SEC-2), which rules out cloud OCR and
+LLM-based extraction.
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-10.1 | Import CSV and Excel (`.xlsx`) into any module that records figures, with a column-mapping step | Must |
+| FR-10.2 | **Extraction proposes, the owner confirms.** Every import shows a review table of proposed records — with source value beside parsed value — and writes nothing until confirmed | Must |
+| FR-10.3 | Imports are previewed against existing data, marking each row as new, an update to an existing record, or unchanged | Must |
+| FR-10.4 | An import is a single undoable action; a confirmed import can be reversed in one step | Must |
+| FR-10.5 | Text-based PDF extraction via per-issuer templates (EPF, ASNB, bank and loan statements), degrading to raw-text display with manual field selection when no template matches | Should |
+| FR-10.6 | Unparseable rows are reported individually with a reason, and never silently dropped | Must |
+| FR-10.7 | Attach a source document to a record for reference, stored as a local file reference rather than embedded data | Could |
+| FR-10.8 | Image/photo OCR | **Won't** — see note |
+
+**On images and Google Docs.** Photo OCR needs a multi-megabyte in-browser engine and
+misreads digits; a wrong balance that looks right is the failure mode this project exists
+to avoid. Receipt and image processing also belongs to the Receipts Tracker under NG1.
+Google Docs cannot be read without the Drive API and OAuth, removed in ADR 001 — export
+to `.xlsx` or `.csv` and import that instead.
+
 ---
 
 ## 6. Data model (logical)
