@@ -10,7 +10,7 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
 
-  var SCHEMA_VERSION = 5;
+  var SCHEMA_VERSION = 6;
 
   var ENTITY_LISTS = [
     "institutions", "accounts", "holdings", "valuations",
@@ -93,20 +93,25 @@
       rate: 0, feePct: 0, salesPct: 0, unitBased: false
     }, deviceId);
   }
-  // A valuation records one subject's position for one period. Exactly one of holdingId
-  // or liabilityId is set: liabilities need a monthly outstanding balance for the same
-  // reason holdings do, or a net worth trend would show debt as a flat line while assets
-  // moved. Amounts default to null — not recorded, which is not the same as zero.
+  // A valuation records one subject's position for one period. Exactly one of holdingId,
+  // liabilityId or assetId is set. Liabilities and physical assets carry a value over
+  // time for the same reason holdings do: a single static figure would apply today's
+  // number to every past month, retroactively rewriting history. Amounts default to
+  // null — not recorded, which is not the same as zero.
   function newValuation(deviceId) {
     return stamp({
-      id: uid(), holdingId: null, liabilityId: null, period: "", balance: null, units: null,
-      unitPrice: null, contribution: null, withdrawal: null, income: null, note: ""
+      id: uid(), holdingId: null, liabilityId: null, assetId: null, period: "",
+      balance: null, units: null, unitPrice: null,
+      contribution: null, withdrawal: null, income: null, note: ""
     }, deviceId);
   }
+  // No currentValue field: an asset's worth lives in its valuations, like everything
+  // else that changes. Keeping a denormalised copy here would let the two drift, and
+  // the copy would be the one on screen.
   function newAsset(deviceId) {
     return stamp({
-      id: uid(), name: "", class: "", acquiredOn: null, cost: 0,
-      currentValue: 0, depreciationModel: null, linkedLiabilityId: null, liquid: false
+      id: uid(), name: "", class: "property", acquiredOn: null, cost: null,
+      depreciationModel: null, linkedLiabilityId: null, liquid: false
     }, deviceId);
   }
   function newLiability(deviceId) {

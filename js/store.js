@@ -56,6 +56,35 @@
         if (v.liabilityId === undefined) v.liabilityId = null;
       });
       return o;
+    },
+
+    // v5 -> v6: physical assets gain a value over time rather than one currentValue
+    // field. Any existing currentValue is converted into a valuation at the asset's
+    // acquisition period before the field is dropped, so no figure is lost (FR-7.8).
+    5: function (o) {
+      (o.valuations || []).forEach(function (v) {
+        if (v.assetId === undefined) v.assetId = null;
+      });
+      (o.assets || []).forEach(function (a) {
+        if (a.currentValue === undefined || a.currentValue === null) {
+          delete a.currentValue;
+          return;
+        }
+        var period = a.acquiredOn ? String(a.acquiredOn).slice(0, 7) : null;
+        if (period && /^\d{4}-\d{2}$/.test(period)) {
+          o.valuations = o.valuations || [];
+          o.valuations.push({
+            id: "mig-" + a.id, holdingId: null, liabilityId: null, assetId: a.id,
+            period: period, balance: a.currentValue, units: null, unitPrice: null,
+            contribution: null, withdrawal: null, income: null,
+            note: "migrated from currentValue",
+            updatedAt: a.updatedAt || new Date().toISOString(),
+            deviceId: a.deviceId || "migration", deleted: false
+          });
+        }
+        delete a.currentValue;
+      });
+      return o;
     }
   };
 

@@ -193,7 +193,11 @@ function renderWorth() {
 
   drawWorthChart(pts);
 
-  var holdings = now.lines.filter(function (l) { return l.kind === "holding"; });
+  // Holdings and physical assets both sit on the asset side — listing only holdings
+  // would leave the Assets subtotal unreconcilable against the lines above it (AC-1).
+  var holdings = now.lines.filter(function (l) {
+    return l.kind === "holding" || l.kind === "asset";
+  });
   var liabs = now.lines.filter(function (l) { return l.kind === "liability"; });
 
   function lineHtml(l, negative) {
@@ -280,6 +284,111 @@ function shortRM(n) {
   if (abs >= 1000) return sign + "RM " + Math.round(abs / 1000) + "k";
   return sign + "RM " + Math.round(abs);
 }
+
+// ---- physical assets -------------------------------------------------------
+
+function renderAssets() {
+  var list = WM.live(state.assets);
+  if (!list.length) {
+    $("assetList").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">No physical assets</div>' +
+      '<div class="es">Add a property or vehicle to include it in net worth.</div></div></div>';
+    return;
+  }
+  var period = WM.currentPeriod();
+  $("assetList").innerHTML = list.map(function (a) {
+    var eq = WM.equityFor(state, a.id, period);
+    var equityLine = "";
+    if (eq && eq.liabilityName) {
+      // Equity is shown per asset only — the asset and its loan already sit on opposite
+      // sides of the net worth total, so adding equity again would double count.
+      equityLine = '<div class="prev">Equity ' + esc(fmtRM(eq.equity)) + " — " +
+        esc(fmtRM(eq.value)) + " less " + esc(fmtRM(eq.owed)) + " owed on " + esc(eq.liabilityName) + "</div>";
+    }
+    return '<div class="acct"><div class="acct-h">' +
+      '<span class="acct-n">' + esc(a.name) + "</span>" +
+      '<span class="tag">' + esc(a.class || "—") + "</span>" +
+      (a.liquid ? "" : '<span class="tag">Illiquid</span>') +
+      '<div class="spacer"></div>' +
+      '<span class="wv">' + (eq ? esc(fmtRM(eq.value)) + (eq.stale ? '<span class="stale-mark">*</span>' : "") : "—") + "</span>" +
+      '<button class="btn sm" data-edit-asset="' + esc(a.id) + '">Edit</button>' +
+      "</div>" + equityLine + "</div>";
+  }).join("");
+  bindAll("[data-edit-asset]", "data-edit-asset", openAsset);
+}
+
+function openAsset(id) {
+  editing.asset = id;
+  var r = id ? WM.byId(state.assets, id) : null;
+  var period = WM.currentPeriod();
+  $("assetModalT").textContent = r ? "Edit asset" : "Add asset";
+  $("s_name").value = r ? r.name : "";
+  $("s_class").value = r ? (r.class || "property") : "property";
+  $("s_acquired").value = r && r.acquiredOn ? String(r.acquiredOn).slice(0, 7) : period;
+  $("s_cost").value = r ? WM.formatAmount(r.cost) : "";
+
+  var pos = r ? WM.positionFor(state, r.id, period) : null;
+  $("s_value").value = pos ? WM.formatAmount(pos.balance) : "";
+
+  $("s_liab").innerHTML = '<option value="">Not financed</option>' +
+    options(WM.live(state.liabilities), r ? r.linkedLiabilityId : null);
+  $("s_liquid").checked = r ? !!r.liquid : false;
+  $("assetDelete").style.display = r ? "" : "none";
+
+  var eq = r ? WM.equityFor(state, r.id, period) : null;
+  $("s_equityNote").textContent = eq && eq.liabilityName
+    ? "Equity today: " + fmtRM(eq.equity) + " (" + fmtRM(eq.value) + " less " + fmtRM(eq.owed) + " owed)."
+    : "Changing the current value records it against " + monthLabel(period) +
+      ", so past months keep the value they had at the time.";
+  showErrors("assetErr", []);
+  openModal("assetModal");
+}
+
+$("assetSave").onclick = function () {
+  var cost = WM.parseAmount($("s_cost").value);
+  var value = WM.parseAmount($("s_value").value);
+  var acquired = $("s_acquired").value;
+  var errors = [];
+  if (cost.error) errors.push("Purchase cost must be a number");
+  if (value.error) errors.push("Current value must be a number");
+  if (acquired && !WM.isPeriod(acquired)) errors.push("Acquired must be a valid month");
+
+  var rec = {
+    id: editing.asset || undefined,
+    name: $("s_name").value.trim(),
+    class: $("s_class").value,
+    acquiredOn: acquired || null,
+    cost: cost.value,
+    linkedLiabilityId: $("s_liab").value || null,
+    liquid: $("s_liquid").checked
+  };
+  errors = errors.concat(WM.validate("assets", rec, state));
+  if (showErrors("assetErr", errors)) return;
+
+  var saved = WM.upsert(state, "assets", rec, deviceId);
+
+  // The purchase cost is a real, dated figure — seed it at acquisition so historical
+  // months show what the asset was worth then, not what it is worth now.
+  if (acquired && cost.value !== null && !WM.valuationFor(state, saved.id, acquired)) {
+    WM.upsertValuation(state, {
+      assetId: saved.id, period: acquired, balance: cost.value, note: "purchase cost"
+    }, deviceId);
+  }
+  if (value.value !== null) {
+    var period = WM.currentPeriod();
+    var existing = WM.positionFor(state, saved.id, period);
+    if (!existing || existing.balance !== value.value || existing.stale) {
+      WM.upsertValuation(state, { assetId: saved.id, period: period, balance: value.value }, deviceId);
+    }
+  }
+
+  closeModal("assetModal");
+  commit();
+  toast(editing.asset ? "Asset updated" : "Asset added");
+};
+
+$("assetDelete").onclick = function () { removeRecord("assets", editing.asset, "assetModal", "Asset"); };
+$("addAssetBtn").onclick = function () { openAsset(null); };
 
 // ---- liabilities -----------------------------------------------------------
 
@@ -573,7 +682,7 @@ function bindAll(selector, attr, fn) {
 
 // ---- editors ---------------------------------------------------------------
 
-var editing = { inst: null, acct: null, hold: null, liab: null };
+var editing = { inst: null, acct: null, hold: null, liab: null, asset: null };
 
 function openModal(id) { $(id).classList.add("on"); }
 function closeModal(id) { $(id).classList.remove("on"); }
@@ -778,6 +887,7 @@ function render() {
   renderMonth();
   renderTree();
   renderLiabilities();
+  renderAssets();
 
   var counts = [
     ["Institutions", liveCount(state.institutions)],

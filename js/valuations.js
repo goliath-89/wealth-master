@@ -72,10 +72,10 @@
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
   }
 
-  // Subject = a holding or a liability. Ids are unique across entities, so one lookup
-  // serves both and existing callers need no change.
+  // Subject = a holding, a liability or a physical asset. Ids are unique across
+  // entities, so one lookup serves all three and existing callers need no change.
   function isSubject(v, subjectId) {
-    return v.holdingId === subjectId || v.liabilityId === subjectId;
+    return v.holdingId === subjectId || v.liabilityId === subjectId || v.assetId === subjectId;
   }
 
   function valuationFor(state, subjectId, period) {
@@ -118,7 +118,7 @@
   // Clearing every field on an existing entry removes it — otherwise the store would
   // accumulate rows that assert nothing. Returns { action, record }.
   function upsertValuation(state, entry, deviceId) {
-    var subjectId = entry.holdingId || entry.liabilityId;
+    var subjectId = entry.holdingId || entry.liabilityId || entry.assetId;
     var existing = valuationFor(state, subjectId, entry.period);
     var empty = isEmptyEntry(entry);
 
@@ -135,6 +135,7 @@
       target = schema.newValuation(deviceId);
       target.holdingId = entry.holdingId || null;
       target.liabilityId = entry.liabilityId || null;
+      target.assetId = entry.assetId || null;
       target.period = entry.period;
       state.valuations.push(target);
     }
@@ -161,6 +162,7 @@
       var entry = {
         holdingId: row.holdingId || null,
         liabilityId: row.liabilityId || null,
+        assetId: row.assetId || null,
         period: period,
         note: row.note
       };
@@ -172,7 +174,7 @@
       });
       if (bad) {
         result.errors.push({
-          holdingId: row.holdingId || row.liabilityId,
+          holdingId: row.holdingId || row.liabilityId || row.assetId,
           field: bad,
           message: "Not a number"
         });

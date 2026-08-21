@@ -1,7 +1,7 @@
 "use strict";
-// Wealth Master — net worth (FR-4.1, FR-4.2)
+// Wealth Master — net worth (FR-4.1, FR-4.2, FR-2.3, FR-2.4)
 //
-// Net worth = holdings − liabilities, as a monthly series.
+// Net worth = (holdings + physical assets) − liabilities, as a monthly series.
 //
 // Carry-forward rule: a subject with no entry for the period keeps its last recorded
 // balance, and that carried figure is marked stale with the month it came from. Showing
@@ -72,6 +72,21 @@
       });
     });
 
+    ent.live(state.assets).forEach(function (a) {
+      var pos = positionFor(state, a.id, period);
+      if (!pos) return;
+      assets += pos.balance;
+      if (a.liquid) liquid += pos.balance; else illiquid += pos.balance;
+      if (pos.stale) staleCount++;
+      lines.push({
+        kind: "asset", id: a.id, name: a.name,
+        accountName: a.class || "", liquid: !!a.liquid,
+        linkedLiabilityId: a.linkedLiabilityId || null,
+        balance: pos.balance, stale: pos.stale,
+        sourcePeriod: pos.sourcePeriod, monthsStale: pos.monthsStale
+      });
+    });
+
     ent.live(state.liabilities).forEach(function (l) {
       var pos = positionFor(state, l.id, period);
       if (!pos) return;
@@ -126,6 +141,34 @@
     return y + "-" + String(m).padStart(2, "0");
   }
 
+  // Equity in one financed asset: its value less the balance of the liability financing
+  // it (FR-2.3). This is a per-asset view only — the asset and the loan are already
+  // counted on their own sides of the net worth total, so adding equity again would
+  // double count. Returns null when the asset has no value recorded yet.
+  function equityFor(state, assetId, period) {
+    var asset = ent.byId(state.assets, assetId);
+    if (!asset || asset.deleted) return null;
+    var pos = positionFor(state, assetId, period);
+    if (!pos) return null;
+
+    var owed = 0;
+    var loan = null;
+    if (asset.linkedLiabilityId) {
+      loan = ent.byId(state.liabilities, asset.linkedLiabilityId);
+      if (loan && !loan.deleted) {
+        var loanPos = positionFor(state, loan.id, period);
+        if (loanPos) owed = loanPos.balance;
+      }
+    }
+    return {
+      value: pos.balance,
+      owed: owed,
+      equity: pos.balance - owed,
+      stale: pos.stale,
+      liabilityName: loan && !loan.deleted ? loan.name : null
+    };
+  }
+
   // Change between two points in the series, for "up or down since last month".
   function changeBetween(earlier, later) {
     if (!earlier || !later) return null;
@@ -142,6 +185,7 @@
     positionFor: positionFor,
     contributingHoldings: contributingHoldings,
     positionAt: positionAt,
+    equityFor: equityFor,
     series: series,
     changeBetween: changeBetween
   };

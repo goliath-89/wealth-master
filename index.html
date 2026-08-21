@@ -143,7 +143,9 @@ html[data-theme="light"] .tag.good{background:#dff3e8;color:#0f6e4a}
 .empty .et{font-size:14.5px;color:var(--tx2);margin-bottom:4px;font-weight:500}
 .empty .es{font-size:12.5px;margin-bottom:16px}
 label.fl{display:block;font-size:11.5px;font-weight:500;color:var(--tx2);margin-bottom:5px}
-input[type=text],input[type=number],select{
+/* month/date must be listed explicitly — they are not covered by [type=text] and
+   default to roughly 24px, failing NFR-6 on a phone. */
+input[type=text],input[type=number],input[type=month],input[type=date],select{
   width:100%;min-height:44px;padding:9px 12px;border-radius:10px;
   border:.5px solid var(--line2);background:var(--surface2);color:var(--tx);
   outline:none;transition:.15s;-webkit-appearance:none;appearance:none;font-size:16px;
@@ -256,6 +258,14 @@ svg.chart{display:block;width:100%;height:auto;overflow:visible}
   </div>
   <div class="sec">
     <label class="chk"><input type="checkbox" id="showArchived"> Show archived accounts</label>
+  </div>
+  <div class="sec">
+    <div class="sec-h">
+      <div class="sec-t">Physical assets</div>
+      <div class="spacer"></div>
+      <button class="btn sm" id="addAssetBtn">+ Asset</button>
+    </div>
+    <div id="assetList"></div>
   </div>
   <div class="sec">
     <div class="sec-h">
@@ -413,6 +423,53 @@ svg.chart{display:block;width:100%;height:auto;overflow:visible}
       <button class="btn" data-close="acctModal">Cancel</button>
       <div class="spacer"></div>
       <button class="btn dgr sm" id="acctDelete" style="display:none">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="assetModal">
+  <div class="modal">
+    <div class="modal-t" id="assetModalT">Add asset</div>
+    <div class="errbox" id="assetErr"></div>
+    <div class="fgrid">
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="s_name">Name</label>
+        <input type="text" id="s_name" placeholder="Family home">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="s_class">Class</label>
+        <select id="s_class">
+          <option value="property">Property</option>
+          <option value="vehicle">Vehicle</option>
+          <option value="valuable">Valuable</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="fitem">
+        <label class="fl" for="s_acquired">Acquired</label>
+        <input type="month" id="s_acquired">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="s_cost">Purchase cost</label>
+        <input type="text" inputmode="decimal" id="s_cost" placeholder="—">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="s_value">Current value</label>
+        <input type="text" inputmode="decimal" id="s_value" placeholder="—">
+      </div>
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="s_liab">Financed by</label>
+        <select id="s_liab"></select>
+      </div>
+      <div class="fitem"><label class="chk"><input type="checkbox" id="s_liquid"> Liquid (can be sold quickly)</label></div>
+    </div>
+    <p class="note" id="s_equityNote" style="margin-top:10px"></p>
+    <hr class="hr">
+    <div class="row">
+      <button class="btn pri" id="assetSave">Save</button>
+      <button class="btn" data-close="assetModal">Cancel</button>
+      <div class="spacer"></div>
+      <button class="btn dgr sm" id="assetDelete" style="display:none">Delete</button>
     </div>
   </div>
 </div>

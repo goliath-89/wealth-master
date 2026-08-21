@@ -68,6 +68,23 @@ test("every tappable control declares a touch target of at least 44px (NFR-6)", 
   assert.ok(declaredPx(".iconbtn", "width") >= 44, ".iconbtn must be >= 44px wide");
 });
 
+test("every text-entry input type is covered by the 44px sizing rule (NFR-6)", function () {
+  var app = helpers.loadApp();
+  var css = app.window.document.querySelector("style").textContent;
+
+  var block = css.match(/input\[type=text\][^{]*\{[^}]*\}/);
+  assert.ok(block, "expected a shared sizing rule for text-entry inputs");
+
+  // month and date render at roughly 24px and are not matched by [type=text], so a date
+  // field silently fails the touch minimum unless it is named in the selector.
+  var selectors = block[0].split("{")[0];
+  ["text", "number", "month", "date"].forEach(function (t) {
+    assert.match(selectors, new RegExp("input\\[type=" + t + "\\]"),
+      "input[type=" + t + "] must be in the sizing rule");
+  });
+  assert.match(block[0], /min-height:\s*(4[4-9]|[5-9]\d)px/);
+});
+
 // Drives the app's own file-input handler with a stubbed FileReader, exercising the
 // real import path rather than calling the guard directly.
 function importIntoApp(app, inputId, text) {

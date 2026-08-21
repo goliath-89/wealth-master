@@ -41,10 +41,11 @@
     return live(state.holdings).filter(function (h) { return h.accountId === accountId; });
   }
 
-  // Valuations attach to a holding or a liability; ids are unique across entities.
+  // Valuations attach to a holding, a liability or a physical asset; ids are unique
+  // across entities.
   function valuationsFor(state, subjectId) {
     return live(state.valuations).filter(function (v) {
-      return v.holdingId === subjectId || v.liabilityId === subjectId;
+      return v.holdingId === subjectId || v.liabilityId === subjectId || v.assetId === subjectId;
     });
   }
 
@@ -58,7 +59,7 @@
     if (entity === "accounts") {
       return { holdings: holdingsFor(state, id).length };
     }
-    if (entity === "holdings" || entity === "liabilities") {
+    if (entity === "holdings" || entity === "liabilities" || entity === "assets") {
       return { valuations: valuationsFor(state, id).length };
     }
     return {};
