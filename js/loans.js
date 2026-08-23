@@ -71,14 +71,25 @@
       ? toSen(opts.instalment)
       : reducingInstalmentSen(principalSen, ratePct, months);
 
+    // Extra payments go straight against principal, so every later month accrues
+    // interest on a smaller balance. This is why overpaying a mortgage works — and
+    // why the same move does nothing for flat-rate hire purchase (see flatSchedule).
+    var extraMonthlySen = toSen(opts.extraMonthly) || 0;
+    var oneOffs = opts.oneOffs || {};
+
     var rows = [];
     var balanceSen = principalSen;
     var totalInterestSen = 0;
+    var totalExtraSen = 0;
     var period = val.isPeriod(opts.startPeriod) ? opts.startPeriod : null;
 
+    // Extras can clear the loan before the contractual tenure, so the loop is bounded
+    // by the balance rather than by the term.
     for (var n = 1; n <= months && balanceSen > 0; n++) {
       var interestSen = Math.round(balanceSen * i);
-      var paymentSen = instalmentSen;
+      var extraThisMonthSen = extraMonthlySen +
+        (period && oneOffs[period] ? toSen(oneOffs[period]) : 0);
+      var paymentSen = instalmentSen + extraThisMonthSen;
       var principalPaidSen = paymentSen - interestSen;
 
       // Guard: an instalment too small to cover interest never amortises. Report it
@@ -101,6 +112,7 @@
 
       balanceSen -= principalPaidSen;
       totalInterestSen += interestSen;
+      totalExtraSen += Math.min(extraThisMonthSen, Math.max(0, paymentSen - interestSen));
 
       rows.push({
         n: n,
@@ -108,12 +120,15 @@
         payment: toRM(paymentSen),
         interest: toRM(interestSen),
         principal: toRM(principalPaidSen),
+        extra: toRM(extraThisMonthSen),
         balance: toRM(balanceSen)
       });
       if (period) period = addMonths(period, 1);
     }
 
-    return finish("reducing", principalSen, instalmentSen, rows, totalInterestSen);
+    var out = finish("reducing", principalSen, instalmentSen, rows, totalInterestSen);
+    out.totalExtra = toRM(totalExtraSen);
+    return out;
   }
 
   // Flat rate (FR-3.3). Interest is calculated ONCE on the original principal for the
@@ -249,6 +264,95 @@
     };
   }
 
+  // Rule of 78 early settlement for a flat-rate facility (FR-3.7).
+  //
+  // THIS IS WHY FLAT RATE IS DIFFERENT. On a mortgage, paying extra reduces the balance
+  // that interest is charged on, so it saves money immediately. On Malaysian hire
+  // purchase the term charges were fixed on day one — paying more each month does not
+  // reduce them. The only way to save interest is to formally settle early, and the
+  // rebate is then set by statute, not by removing the remaining interest.
+  //
+  //   rebate = total term charges × r(r+1) / n(n+1)     [Hire Purchase Act 1967]
+  //
+  // where n is the full number of instalments and r the number still outstanding. The
+  // rebate is deliberately smaller than the interest a reducing-balance loan would save,
+  // because Rule of 78 front-loads the charges. Modelling this as a mortgage overpayment
+  // would overstate the saving substantially — the R4 trap in its most tempting form.
+  function ruleOf78Settlement(schedule, instalmentsPaid) {
+    if (!schedule || schedule.basis !== "flat" || !schedule.rows.length) return null;
+    var n = schedule.rows.length;
+    var paid = Math.max(0, Math.min(parseInt(instalmentsPaid, 10) || 0, n));
+    var r = n - paid;
+    if (r <= 0) return null;
+
+    var totalInterestSen = toSen(schedule.totalInterest);
+    var instalmentSen = toSen(schedule.instalment);
+
+    var rebateSen = Math.round(totalInterestSen * (r * (r + 1)) / (n * (n + 1)));
+    var outstandingInstalmentsSen = instalmentSen * r;
+    var settlementSen = outstandingInstalmentsSen - rebateSen;
+
+    // What continuing to term would cost from here, against settling now.
+    var interestIfContinuedSen = Math.round(totalInterestSen * (r / n));
+
+    return {
+      instalmentsPaid: paid,
+      instalmentsRemaining: r,
+      settlementPeriod: paid > 0 && schedule.rows[paid - 1] ? schedule.rows[paid - 1].period : schedule.rows[0].period,
+      outstandingInstalments: toRM(outstandingInstalmentsSen),
+      rebate: toRM(rebateSen),
+      settlementAmount: toRM(settlementSen),
+      interestSaved: toRM(rebateSen),
+      interestIfContinued: toRM(interestIfContinuedSen)
+    };
+  }
+
+  // Baseline against accelerated (FR-3.6). Reducing balance only — see ruleOf78Settlement
+  // for why a flat facility cannot be modelled this way.
+  function compareSchedules(baseline, accelerated) {
+    if (!baseline || !accelerated || !baseline.rows.length || !accelerated.rows.length) return null;
+    var interestSavedSen = toSen(baseline.totalInterest) - toSen(accelerated.totalInterest);
+    return {
+      monthsSaved: baseline.months - accelerated.months,
+      interestSaved: toRM(interestSavedSen),
+      baselineInterest: baseline.totalInterest,
+      acceleratedInterest: accelerated.totalInterest,
+      baselineMonths: baseline.months,
+      acceleratedMonths: accelerated.months,
+      baselinePayoff: baseline.payoffPeriod,
+      acceleratedPayoff: accelerated.payoffPeriod,
+      extraPaid: accelerated.totalExtra || 0
+    };
+  }
+
+  // Simulates a different monthly payment on a reducing-balance loan and reports what it
+  // buys. `newInstalment` is the whole monthly figure the owner would pay, which is how
+  // they think about it — not the increment.
+  function simulatePayment(liability, newInstalment, oneOffs) {
+    var terms = {
+      principal: liability.principal,
+      ratePct: liability.ratePct,
+      tenureMonths: liability.tenureMonths,
+      startPeriod: liability.startDate ? String(liability.startDate).slice(0, 7) : null
+    };
+    var baseline = reducingSchedule(terms);
+    if (!baseline.rows.length) return null;
+
+    var accelerated = reducingSchedule({
+      principal: terms.principal, ratePct: terms.ratePct, tenureMonths: terms.tenureMonths,
+      startPeriod: terms.startPeriod,
+      instalment: newInstalment !== null && newInstalment !== undefined ? newInstalment : baseline.instalment,
+      oneOffs: oneOffs || {}
+    });
+    if (accelerated.error) return { error: accelerated.error, baseline: baseline };
+
+    return {
+      baseline: baseline,
+      accelerated: accelerated,
+      comparison: compareSchedules(baseline, accelerated)
+    };
+  }
+
   // Compares the engine's schedule against what a statement actually says (AC-2, AC-3).
   //
   // This measures the engine; it never adjusts it. If a real loan disagrees, the maths is
@@ -318,6 +422,9 @@
     toSen: toSen,
     addMonths: addMonths,
     reconcile: reconcile,
+    ruleOf78Settlement: ruleOf78Settlement,
+    compareSchedules: compareSchedules,
+    simulatePayment: simulatePayment,
     reducingInstalmentSen: reducingInstalmentSen,
     reducingSchedule: reducingSchedule,
     flatSchedule: flatSchedule,

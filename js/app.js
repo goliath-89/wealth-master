@@ -293,6 +293,76 @@ function pct(n) {
   return n === null || n === undefined || isNaN(n) ? "—" : Number(n).toFixed(2) + "%";
 }
 
+// What-if inputs, held in memory only — a simulation is not a decision, so nothing is
+// written to the store until the owner actually pays the money.
+var simInputs = {};
+
+// The interest-saving simulator. Reducing-balance loans get a payment slider; flat-rate
+// facilities get early settlement instead, because paying extra monthly does not reduce
+// term charges that were fixed on day one.
+function renderSimulator(l, s) {
+  var sim = simInputs[l.id] || {};
+
+  if (s.basis === "flat") {
+    var paid = sim.settleAfter === undefined ? Math.min(12, s.months - 1) : sim.settleAfter;
+    var set = WM.ruleOf78Settlement(s, paid);
+    var body = "";
+    if (set) {
+      body = '<div class="lsum">' +
+        '<div><div class="k">Settle after</div><div class="v">' + set.instalmentsPaid + " mths</div></div>" +
+        '<div><div class="k">Settlement figure</div><div class="v">' + esc(fmtRM(set.settlementAmount)) + "</div></div>" +
+        '<div><div class="k">Rebate (Rule of 78)</div><div class="v">' + esc(fmtRM(set.rebate)) + "</div></div>" +
+        "</div>" +
+        '<div class="cmp">Paying the remaining ' + set.instalmentsRemaining + " instalments in full would cost <b>" +
+        esc(fmtRM(set.outstandingInstalments)) + "</b>. Settling now costs <b>" + esc(fmtRM(set.settlementAmount)) +
+        "</b>, saving <b>" + esc(fmtRM(set.rebate)) + "</b>." +
+        " Note the rebate is smaller than the <b>" + esc(fmtRM(set.interestIfContinued)) +
+        "</b> of interest still nominally outstanding — Rule of 78 front-loads the charges.</div>";
+    }
+    return '<hr class="hr"><div class="sec-t" style="margin-bottom:8px">Early settlement</div>' +
+      '<div class="warnbox" style="margin-bottom:10px">Paying extra each month does <b>not</b> cut the interest on a flat-rate hire purchase — the term charges were fixed when you signed. The only way to save is to settle early, and the rebate is set by the Hire Purchase Act.</div>' +
+      '<div class="fgrid"><div class="fitem">' +
+      '<label class="fl" for="sim_' + esc(l.id) + '">Instalments paid before settling</label>' +
+      '<input type="number" id="sim_' + esc(l.id) + '" min="0" max="' + (s.months - 1) +
+      '" value="' + paid + '" data-simsettle="' + esc(l.id) + '"></div></div>' + body;
+  }
+
+  var payment = sim.payment === undefined ? s.instalment : sim.payment;
+  var result = WM.simulatePayment(l, payment);
+  var body2 = "";
+  if (result && result.error) {
+    body2 = '<div class="dangerbox" style="margin-top:10px">' + esc(result.error) + "</div>";
+  } else if (result && result.comparison) {
+    var c = result.comparison;
+    if (c.monthsSaved === 0 && c.interestSaved === 0) {
+      body2 = '<div class="cmp">That is the contractual instalment, so there is nothing saved yet. ' +
+        "Raise it to see the effect.</div>";
+    } else {
+      var years = Math.floor(Math.abs(c.monthsSaved) / 12);
+      var rem = Math.abs(c.monthsSaved) % 12;
+      var span = (years ? years + (years === 1 ? " year " : " years ") : "") +
+        (rem ? rem + (rem === 1 ? " month" : " months") : "");
+      body2 = '<div class="lsum">' +
+        '<div><div class="k">Interest saved</div><div class="v">' + esc(fmtRM(c.interestSaved)) + "</div></div>" +
+        '<div><div class="k">Time saved</div><div class="v">' + Math.abs(c.monthsSaved) + " mths</div></div>" +
+        '<div><div class="k">New payoff</div><div class="v">' + esc(monthLabel(c.acceleratedPayoff)) + "</div></div>" +
+        "</div>" +
+        '<div class="cmp">Paying <b>' + esc(fmtRM(payment)) + "</b> instead of <b>" + esc(fmtRM(s.instalment)) +
+        "</b> clears the loan in " + c.acceleratedMonths + " months rather than " + c.baselineMonths +
+        (span ? " — <b>" + esc(span.trim()) + "</b> earlier" : "") +
+        ", and cuts total interest from <b>" + esc(fmtRM(c.baselineInterest)) + "</b> to <b>" +
+        esc(fmtRM(c.acceleratedInterest)) + "</b>.</div>";
+    }
+  }
+
+  return '<hr class="hr"><div class="sec-t" style="margin-bottom:8px">Interest saving scenario</div>' +
+    '<p class="note" style="margin-bottom:10px">Type a different monthly payment to see what it saves. Nothing is saved to your data — this is a what-if.</p>' +
+    '<div class="fgrid"><div class="fitem">' +
+    '<label class="fl" for="sim_' + esc(l.id) + '">Monthly payment</label>' +
+    '<input type="text" inputmode="decimal" id="sim_' + esc(l.id) + '" value="' +
+    esc(WM.formatAmount(payment)) + '" data-simpay="' + esc(l.id) + '"></div></div>' + body2;
+}
+
 function renderLoans() {
   var list = WM.live(state.liabilities);
   if (!list.length) {
@@ -354,6 +424,8 @@ function renderLoans() {
           : '<span class="tag" style="background:rgba(226,80,79,.16);color:#f08585">Disagrees with statement</span>';
     }
 
+    var sim = renderSimulator(l, s);
+
     return '<div class="card" style="margin-bottom:12px">' +
       '<div class="acct-h"><span class="acct-n">' + esc(l.name) + "</span>" +
       '<span class="tag">' + (s.basis === "flat" ? "Flat rate" : "Reducing balance") + "</span>" +
@@ -367,7 +439,7 @@ function renderLoans() {
       '<div><div class="k">Effective rate</div><div class="v">' + esc(pct(s.effectiveRatePct)) + "</div></div>" +
       '<div><div class="k">Payoff</div><div class="v">' + esc(s.payoffPeriod ? monthLabel(s.payoffPeriod) : "—") + "</div></div>" +
       (pos ? '<div><div class="k">Paid so far</div><div class="v">' + pos.instalmentsPaid + " / " + s.months + "</div></div>" : "") +
-      "</div>" + cmp +
+      "</div>" + cmp + sim +
       '<button class="btn sm" data-sched="' + esc(l.id) + '">' +
       (open ? "Hide schedule" : "Show schedule (" + s.months + " rows)") + "</button>" +
       (open ? '<div class="tscroll"><table><thead><tr><th>#</th><th>Month</th>' +
@@ -379,6 +451,26 @@ function renderLoans() {
   bindAll("[data-sched]", "data-sched", function (id) {
     openSchedules[id] = !openSchedules[id];
     renderLoans();
+  });
+
+  // Recalculates on change rather than on every keystroke, so a half-typed "1,2" is not
+  // briefly read as RM 1.20 and the caret is left where the owner put it.
+  Array.prototype.forEach.call(document.querySelectorAll("[data-simpay]"), function (el) {
+    el.onchange = function () {
+      var id = el.getAttribute("data-simpay");
+      var parsed = WM.parseAmount(el.value);
+      simInputs[id] = simInputs[id] || {};
+      simInputs[id].payment = parsed.error ? undefined : parsed.value;
+      renderLoans();
+    };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-simsettle]"), function (el) {
+    el.onchange = function () {
+      var id = el.getAttribute("data-simsettle");
+      simInputs[id] = simInputs[id] || {};
+      simInputs[id].settleAfter = parseInt(el.value, 10) || 0;
+      renderLoans();
+    };
   });
 }
 
