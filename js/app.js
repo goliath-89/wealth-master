@@ -285,6 +285,93 @@ function shortRM(n) {
   return sign + "RM " + Math.round(abs);
 }
 
+// ---- allocation and PIDM ---------------------------------------------------
+
+// Categorical palette, reused across the app. Chosen to stay distinguishable in both
+// themes and for the commonest colour-vision deficiencies — but the legend always
+// carries the label and figure too, so colour is never the only signal (NFR-9).
+var SLICE_COLOURS = [
+  "#3987e5", "#1fae7f", "#e07a3c", "#dfa62a", "#dd7ba4",
+  "#5ac26a", "#8d80e8", "#e06767", "#4bc0d0", "#b58bd4"
+];
+
+function sliceColour(i) { return SLICE_COLOURS[i % SLICE_COLOURS.length]; }
+
+function polar(cx, cy, r, deg) {
+  var a = (deg - 90) * Math.PI / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+
+function arcPath(cx, cy, rOut, rIn, a0, a1) {
+  var big = (a1 - a0) > 180 ? 1 : 0;
+  var p1 = polar(cx, cy, rOut, a0), p2 = polar(cx, cy, rOut, a1);
+  var p3 = polar(cx, cy, rIn, a1), p4 = polar(cx, cy, rIn, a0);
+  return "M" + p1[0].toFixed(2) + "," + p1[1].toFixed(2) +
+    " A" + rOut + "," + rOut + " 0 " + big + " 1 " + p2[0].toFixed(2) + "," + p2[1].toFixed(2) +
+    " L" + p3[0].toFixed(2) + "," + p3[1].toFixed(2) +
+    " A" + rIn + "," + rIn + " 0 " + big + " 0 " + p4[0].toFixed(2) + "," + p4[1].toFixed(2) + " Z";
+}
+
+function renderAllocation() {
+  var period = WM.currentPeriod();
+  var sel = $("allocDim");
+  if (!sel.options.length) {
+    sel.innerHTML = Object.keys(WM.DIMENSIONS).map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc(WM.DIMENSIONS[k].label) + "</option>";
+    }).join("");
+  }
+  var alloc = WM.allocation(state, period, sel.value || "class");
+
+  if (!alloc.slices.length) {
+    $("allocChart").innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
+      "Nothing recorded to allocate yet.</div>";
+    $("allocLegend").innerHTML = "";
+    return;
+  }
+
+  var W = 300, H = 220, cx = 150, cy = 110, rO = 88, rI = 58;
+  var body = "";
+  if (alloc.slices.length === 1) {
+    // A single slice as a full circle — an arc from 0 to 360 degenerates to nothing.
+    body += '<circle cx="' + cx + '" cy="' + cy + '" r="' + ((rO + rI) / 2) +
+      '" fill="none" stroke="' + sliceColour(0) + '" stroke-width="' + (rO - rI) + '"></circle>';
+  } else {
+    var angle = 0;
+    alloc.slices.forEach(function (s, i) {
+      var sweep = s.value / alloc.total * 360;
+      if (sweep <= 0) return;
+      var gap = sweep > 3 ? 1 : 0;
+      body += '<path d="' + arcPath(cx, cy, rO, rI, angle, angle + sweep - gap) +
+        '" fill="' + sliceColour(i) + '"></path>';
+      angle += sweep;
+    });
+  }
+  body += '<text x="' + cx + '" y="' + (cy - 2) + '" text-anchor="middle" fill="currentColor" ' +
+    'style="font-size:17px;font-weight:600">' + esc(fmtRM(alloc.total)) + "</text>";
+  body += '<text x="' + cx + '" y="' + (cy + 16) + '" text-anchor="middle" class="axis-t">assets</text>';
+
+  $("allocChart").innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H +
+    '" preserveAspectRatio="xMidYMid meet" style="max-height:230px" role="img" ' +
+    'aria-label="Allocation by ' + esc(alloc.label) + '">' + body + "</svg>";
+
+  $("allocLegend").innerHTML = '<div class="legend">' + alloc.slices.map(function (s, i) {
+    return '<span class="lg"><span class="lgd" style="background:' + sliceColour(i) + '"></span>' +
+      esc(s.label) + ' <span class="lgv">' + esc(s.share.toFixed(1)) + "% · " +
+      esc(fmtRM(s.value)) + "</span></span>";
+  }).join("") + "</div>";
+}
+
+function renderPidm() {
+  var over = WM.pidmExposure(state, WM.currentPeriod()).filter(function (e) { return e.overLimit; });
+  if (!over.length) { $("pidmWrap").style.display = "none"; return; }
+  $("pidmWrap").style.display = "";
+  $("pidmNote").innerHTML = "<b>Above PIDM cover.</b> " + over.map(function (e) {
+    return esc(fmtRM(e.protectedTotal)) + " held at <b>" + esc(e.institution) +
+      "</b> — " + esc(fmtRM(e.excess)) + " above the " + esc(fmtRM(e.limit)) + " limit";
+  }).join("; ") + ". The limit applies per depositor per member bank, so splitting across " +
+    "institutions restores full cover.";
+}
+
 // ---- loan schedules --------------------------------------------------------
 
 var openSchedules = {};
@@ -880,9 +967,21 @@ function renderTree() {
       if (a.archived) tags += '<span class="tag mute">Archived</span> ';
 
       var holdHtml = holdings.map(function (h) {
+        // Realised beside advertised — the Fund Desk principle (G5). A fund quoting
+        // 4.5% that actually paid 3.9% should say so on the same line.
+        var n = WM.netOfFees(state, h);
+        var yieldHtml = "";
+        if (n) {
+          var beat = n.versusAdvertised >= 0;
+          yieldHtml = '<span class="yield ' + (beat ? "up" : "dn") + '">' +
+            (beat ? "▲ " : "▼ ") + esc(n.realisedPct.toFixed(2)) + "% realised" +
+            (n.feePct ? " · " + esc(n.netPct.toFixed(2)) + "% net" : "") +
+            " · " + n.months + (n.months === 1 ? " month" : " months") + "</span>";
+        }
         return '<div class="hold"><span>' + esc(h.name) + '</span>' +
           '<span class="tag">' + esc(h.instrumentType || "—") + "</span>" +
-          (h.rate ? '<span>' + esc(String(h.rate)) + "% p.a.</span>" : "") +
+          (h.rate ? '<span>' + esc(String(h.rate)) + "% advertised</span>" : "") +
+          yieldHtml +
           '<div class="spacer"></div>' +
           '<button class="btn sm" data-edit-hold="' + esc(h.id) + '">Edit</button></div>';
       }).join("");
@@ -1151,6 +1250,7 @@ $("addLiabBtn").onclick = function () { openLiab(null); };
 
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
+$("allocDim").onchange = renderAllocation;
 
 Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
   t.onclick = function () {
@@ -1167,6 +1267,8 @@ Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
 function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
   renderWorth();
+  renderAllocation();
+  renderPidm();
   renderMonth();
   renderTree();
   renderLiabilities();
