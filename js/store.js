@@ -85,6 +85,14 @@
         delete a.currentValue;
       });
       return o;
+    },
+
+    // v6 -> v7: statement checks become stored data, so the loan engines are measured
+    // against real statements repeatedly rather than once by hand. The empty list is
+    // created by the ENTITY_LISTS backfill below; this entry records the intent.
+    6: function (o) {
+      if (!Array.isArray(o.loanChecks)) o.loanChecks = [];
+      return o;
     }
   };
 

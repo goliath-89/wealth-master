@@ -249,9 +249,75 @@
     };
   }
 
+  // Compares the engine's schedule against what a statement actually says (AC-2, AC-3).
+  //
+  // This measures the engine; it never adjusts it. If a real loan disagrees, the maths is
+  // wrong and gets fixed for every loan — the alternative, nudging figures to match one
+  // statement, would be indistinguishable from hardcoding and would break every other
+  // loan silently.
+  //
+  // Verdicts:
+  //   exact  — 0 sen apart. What flat-rate hire purchase must achieve; the Hire Purchase
+  //            Act fixes the arithmetic, so any difference means a real defect.
+  //   close  — within RM 5. Expected on a Malaysian mortgage, where daily rest makes
+  //            interest depend on the exact day each payment lands.
+  //   off    — beyond RM 5. Something is genuinely wrong: wrong basis, wrong rate, or a
+  //            fee the schedule does not model.
+  function reconcile(schedule, check) {
+    if (!schedule || !schedule.rows.length || !check || !val.isPeriod(check.period)) return null;
+
+    var row = null;
+    for (var i = 0; i < schedule.rows.length; i++) {
+      if (schedule.rows[i].period === check.period) { row = schedule.rows[i]; break; }
+    }
+    if (!row) {
+      return {
+        period: check.period, found: false,
+        message: "That month is outside this loan's schedule — check the start month and tenure."
+      };
+    }
+
+    function compare(expected, actual) {
+      if (actual === null || actual === undefined) return null;
+      var diffSen = toSen(actual) - toSen(expected);
+      var diff = diffSen / 100;
+      return {
+        expected: expected,
+        actual: actual,
+        diff: diff,
+        verdict: diffSen === 0 ? "exact" : Math.abs(diffSen) <= 500 ? "close" : "off"
+      };
+    }
+
+    var interest = compare(row.interest, check.statementInterest);
+    var balance = compare(row.balance, check.statementBalance);
+    var instalment = compare(row.payment, check.statementInstalment);
+
+    var parts = [interest, balance, instalment].filter(Boolean);
+    var worst = parts.reduce(function (acc, p) {
+      if (p.verdict === "off") return "off";
+      if (p.verdict === "close" && acc !== "off") return "close";
+      return acc;
+    }, parts.length ? "exact" : null);
+
+    return {
+      period: check.period,
+      found: true,
+      basis: schedule.basis,
+      interest: interest,
+      balance: balance,
+      instalment: instalment,
+      verdict: worst,
+      // Flat rate has no daily-rest ambiguity to hide behind, so "close" is not good
+      // enough there — it is a failure with a small number attached.
+      mustBeExact: schedule.basis === "flat"
+    };
+  }
+
   return {
     toSen: toSen,
     addMonths: addMonths,
+    reconcile: reconcile,
     reducingInstalmentSen: reducingInstalmentSen,
     reducingSchedule: reducingSchedule,
     flatSchedule: flatSchedule,

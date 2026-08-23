@@ -342,10 +342,23 @@ function renderLoans() {
         '</td><td class="r">' + esc(fmtRM(r.balance)) + "</td></tr>";
     }).join("");
 
+    // Whether this loan has ever been checked against a real statement, and how it went.
+    var chk = checkFor(l.id);
+    var rec = chk ? WM.reconcile(s, chk) : null;
+    var checkTag = '<span class="tag">Unverified</span>';
+    if (rec && rec.found) {
+      checkTag = rec.verdict === "exact"
+        ? '<span class="tag good">Matches statement</span>'
+        : rec.verdict === "close" && !rec.mustBeExact
+          ? '<span class="tag">Close to statement</span>'
+          : '<span class="tag" style="background:rgba(226,80,79,.16);color:#f08585">Disagrees with statement</span>';
+    }
+
     return '<div class="card" style="margin-bottom:12px">' +
       '<div class="acct-h"><span class="acct-n">' + esc(l.name) + "</span>" +
       '<span class="tag">' + (s.basis === "flat" ? "Flat rate" : "Reducing balance") + "</span>" +
       '<span class="tag">' + esc(pct(l.ratePct)) + "</span>" +
+      checkTag +
       "</div>" +
       '<div class="lsum">' +
       '<div><div class="k">Instalment</div><div class="v">' + esc(fmtRM(s.instalment)) + "</div></div>" +
@@ -499,9 +512,65 @@ function renderLiabilities() {
   bindAll("[data-edit-liab]", "data-edit-liab", openLiab);
 }
 
+function checkFor(liabilityId) {
+  var list = WM.live(state.loanChecks);
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].liabilityId === liabilityId) return list[i];
+  }
+  return null;
+}
+
+// Renders the verdict of the last statement check, in words as well as colour (NFR-9).
+function renderCheckResult(liability) {
+  var box = $("c_result");
+  var chk = liability ? checkFor(liability.id) : null;
+  if (!liability || !chk) { box.innerHTML = ""; return; }
+
+  var res = WM.reconcile(WM.scheduleFor(liability), chk);
+  if (!res) { box.innerHTML = ""; return; }
+  if (!res.found) {
+    box.innerHTML = '<div class="warnbox" style="margin-top:12px">' + esc(res.message) + "</div>";
+    return;
+  }
+
+  function line(label, cmp) {
+    if (!cmp) return "";
+    var word = cmp.diff === 0 ? "matches exactly"
+      : (cmp.diff > 0 ? "statement is " : "statement is ") + fmtRM(Math.abs(cmp.diff)) +
+        (cmp.diff > 0 ? " higher" : " lower");
+    return "<li>" + esc(label) + ": engine " + esc(fmtRM(cmp.expected)) +
+      ", statement " + esc(fmtRM(cmp.actual)) + " — <b>" + esc(word) + "</b></li>";
+  }
+
+  var cls = res.verdict === "exact" ? "warnbox" : res.verdict === "close" ? "warnbox" : "dangerbox";
+  var headline;
+  if (res.verdict === "exact") {
+    headline = "<b>Matches to the sen.</b> The engine agrees with your statement for " +
+      esc(monthLabel(res.period)) + ".";
+  } else if (res.verdict === "close" && !res.mustBeExact) {
+    headline = "<b>Close, not exact.</b> Expected on a Malaysian mortgage: most are daily rest, " +
+      "where interest depends on the exact day each payment lands, while this engine computes " +
+      "monthly rest. A small, month-length-dependent gap is the signature of that.";
+  } else {
+    headline = "<b>Does not match.</b> " + (res.mustBeExact
+      ? "Flat-rate hire purchase is fixed by the Hire Purchase Act, so any difference means the engine or the terms are wrong — not a rounding convention."
+      : "The gap is too large to be a rest-basis difference. Check the rate, tenure and start month first.");
+  }
+
+  box.innerHTML = '<div class="' + cls + '" style="margin-top:12px">' + headline +
+    '<ul class="losslist">' + line("Interest", res.interest) + line("Balance", res.balance) +
+    line("Instalment", res.instalment) + "</ul></div>";
+}
+
 function openLiab(id) {
   editing.liab = id;
   var r = id ? WM.byId(state.liabilities, id) : null;
+  var chk = r ? checkFor(r.id) : null;
+  $("c_period").value = chk ? chk.period : "";
+  $("c_interest").value = chk ? WM.formatAmount(chk.statementInterest) : "";
+  $("c_balance").value = chk ? WM.formatAmount(chk.statementBalance) : "";
+  $("c_instalment").value = chk ? WM.formatAmount(chk.statementInstalment) : "";
+  renderCheckResult(r);
   $("liabModalT").textContent = r ? "Edit liability" : "Add liability";
   $("l_name").value = r ? r.name : "";
   $("l_type").value = r ? (r.type || "mortgage") : "mortgage";
@@ -941,7 +1010,45 @@ $("liabSave").onclick = function () {
   errors = errors.concat(WM.validate("liabilities", rec, state));
   if (showErrors("liabErr", errors)) return;
 
-  WM.upsert(state, "liabilities", rec, deviceId);
+  var savedLiab = WM.upsert(state, "liabilities", rec, deviceId);
+
+  // The statement check is the owner's own record of what the bank said. Saved as data,
+  // never folded back into the calculation.
+  var cPeriod = $("c_period").value;
+  var cInterest = WM.parseAmount($("c_interest").value);
+  var cBalance = WM.parseAmount($("c_balance").value);
+  var cInstalment = WM.parseAmount($("c_instalment").value);
+  var anyFigure = cInterest.value !== null || cBalance.value !== null || cInstalment.value !== null;
+
+  if (cPeriod && !WM.isPeriod(cPeriod)) {
+    showErrors("liabErr", ["Statement month must be a valid month"]);
+    return;
+  }
+  if (anyFigure && !cPeriod) {
+    showErrors("liabErr", ["Give the statement month those figures belong to"]);
+    return;
+  }
+  if (cInterest.error || cBalance.error || cInstalment.error) {
+    showErrors("liabErr", ["Statement figures must be numbers"]);
+    return;
+  }
+
+  var existingCheck = checkFor(savedLiab.id);
+  if (cPeriod && anyFigure) {
+    var chk = existingCheck || WM.newLoanCheck(deviceId);
+    chk.liabilityId = savedLiab.id;
+    chk.period = cPeriod;
+    chk.statementInterest = cInterest.value;
+    chk.statementBalance = cBalance.value;
+    chk.statementInstalment = cInstalment.value;
+    chk.updatedAt = WM.nowIso();
+    chk.deviceId = deviceId;
+    chk.deleted = false;
+    if (!existingCheck) state.loanChecks.push(chk);
+  } else if (existingCheck && !anyFigure) {
+    WM.softDelete(state.loanChecks, existingCheck.id, deviceId);
+  }
+
   closeModal("liabModal");
   commit();
   toast(editing.liab ? "Liability updated" : "Liability added");

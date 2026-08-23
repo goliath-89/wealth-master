@@ -10,11 +10,12 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
 
-  var SCHEMA_VERSION = 6;
+  var SCHEMA_VERSION = 7;
 
   var ENTITY_LISTS = [
     "institutions", "accounts", "holdings", "valuations",
-    "assets", "liabilities", "loanPayments", "scenarios", "goals", "reference"
+    "assets", "liabilities", "loanPayments", "loanChecks",
+    "scenarios", "goals", "reference"
   ];
 
   function uid() {
@@ -59,6 +60,7 @@
       assets: [],
       liabilities: [],
       loanPayments: [],
+      loanChecks: [],
       scenarios: [],
       goals: [],
       reference: [],
@@ -114,6 +116,16 @@
       depreciationModel: null, linkedLiabilityId: null, liquid: false
     }, deviceId);
   }
+  // What a real statement says for one month, so the engine can be checked against it
+  // (AC-2, AC-3). This is the owner's own data and stays in their store — the engine is
+  // never tuned to a specific loan, only measured against one.
+  function newLoanCheck(deviceId) {
+    return stamp({
+      id: uid(), liabilityId: null, period: "",
+      statementInterest: null, statementBalance: null, statementInstalment: null, note: ""
+    }, deviceId);
+  }
+
   function newLiability(deviceId) {
     return stamp({
       id: uid(), name: "", type: "", principal: 0, ratePct: 0,
@@ -135,6 +147,7 @@
     newHolding: newHolding,
     newValuation: newValuation,
     newAsset: newAsset,
-    newLiability: newLiability
+    newLiability: newLiability,
+    newLoanCheck: newLoanCheck
   };
 });

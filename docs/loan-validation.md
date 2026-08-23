@@ -65,37 +65,33 @@ enough to be visible.
 
 ## What is still needed — the gate
 
-Two real statements. For each, the engine must reproduce the figures **to the sen**.
+Two real statements, checked **in the app**, not here.
 
-### AC-3 — hire purchase (flat rate)
+Open a liability on the Accounts tab and fill in **Check against a statement**: the
+statement month, the interest charged that month, the closing balance, and the instalment
+paid. The app compares its own schedule against those figures and reports the difference
+to the sen. The Loans tab then labels the loan *Matches statement*, *Close to statement*
+or *Disagrees with statement*.
 
-From the HP agreement or any monthly statement:
+Only the month plus one figure is needed to get a verdict; interest is the most telling,
+because it is what proves the engine is applying the right arithmetic rather than
+coincidentally landing on a similar instalment.
 
-| Needed | From your statement |
+**Nothing goes in this repository** (SEC-1). The figures are the owner's own data, stored
+in their data file alongside everything else, and can be edited or cleared at any time.
+
+**The engine is measured, never tuned.** Entering a statement changes no calculation. If a
+real loan disagrees, the maths is wrong and gets fixed for every loan — adjusting figures
+to satisfy one statement would be hardcoding by another name, and would break every other
+loan silently.
+
+### How a verdict is read
+
+| Verdict | Meaning |
 |---|---|
-| Original amount financed | |
-| Flat rate quoted (% p.a.) | |
-| Tenure (months) | |
-| Monthly instalment | |
-| First instalment month | |
-| Interest portion shown on one instalment | |
-| Outstanding balance on a stated date | |
-
-### AC-2 — mortgage (reducing balance)
-
-| Needed | From your statement |
-|---|---|
-| Original loan amount | |
-| Rate (% p.a.) and whether fixed or floating | |
-| Tenure (months) | |
-| Monthly instalment | |
-| First instalment month | |
-| Interest charged in one specific month | |
-| Outstanding balance on a stated date | |
-
-**No account numbers, names or balances beyond these fields — and none of it is committed
-to this repository** (SEC-1). Read the figures out; they are used to check the engine and
-then discarded.
+| **exact** | 0 sen apart. What flat-rate hire purchase must achieve — the Hire Purchase Act fixes the arithmetic, so any difference is a real defect. |
+| **close** | Within RM 5. Legitimate on a Malaysian mortgage, where daily rest makes interest depend on the exact day each payment lands. Not acceptable for flat rate. |
+| **off** | More than RM 5 apart. Wrong basis, wrong rate, wrong start month, or a fee the schedule does not model. |
 
 ### The known open question on mortgages
 

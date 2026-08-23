@@ -52,6 +52,8 @@
                   "startDate", "instalment", "linkedAssetId", "updatedAt", "deviceId", "deleted"],
     loanPayments: ["id", "liabilityId", "period", "scheduled", "actual", "extra",
                    "updatedAt", "deviceId", "deleted"],
+    loanChecks: ["id", "liabilityId", "period", "statementInterest", "statementBalance",
+                 "statementInstalment", "note", "updatedAt", "deviceId", "deleted"],
     scenarios: ["id", "name", "inflationPct", "updatedAt", "deviceId", "deleted"],
     goals: ["id", "name", "targetAmount", "targetDate", "updatedAt", "deviceId", "deleted"],
     reference: ["source", "key", "value", "asOf", "status"]

@@ -546,7 +546,30 @@ tbody tr.paid td{color:var(--tx3)}
         <input type="text" inputmode="decimal" id="l_instalment" placeholder="—">
       </div>
     </div>
-    <p class="note" style="margin-top:10px">These terms are recorded now and drive the amortisation engine in phase P2. Net worth uses the outstanding balance you enter each month on the Month tab.</p>
+    <p class="note" style="margin-top:10px">Net worth uses the outstanding balance you enter each month on the Month tab. These terms drive the schedule on the Loans tab.</p>
+
+    <hr class="hr">
+    <div class="sec-t" style="margin-bottom:8px">Check against a statement</div>
+    <p class="note" style="margin-bottom:12px">Optional, and worth doing once. Enter what a real statement says for one month and the app reports whether its own maths agrees, to the sen. Nothing here changes the calculation — it measures it.</p>
+    <div class="fgrid">
+      <div class="fitem">
+        <label class="fl" for="c_period">Statement month</label>
+        <input type="month" id="c_period">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="c_interest">Interest charged</label>
+        <input type="text" inputmode="decimal" id="c_interest" placeholder="—">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="c_balance">Balance at month end</label>
+        <input type="text" inputmode="decimal" id="c_balance" placeholder="—">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="c_instalment">Instalment paid</label>
+        <input type="text" inputmode="decimal" id="c_instalment" placeholder="—">
+      </div>
+    </div>
+    <div id="c_result"></div>
     <hr class="hr">
     <div class="row">
       <button class="btn pri" id="liabSave">Save</button>
