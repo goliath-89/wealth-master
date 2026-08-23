@@ -67,6 +67,22 @@ test("the simulated saving matches the engine's own comparison", function () {
   assert.ok(expected.monthsSaved > 0);
 });
 
+test("a payoff comparison chart is drawn alongside the saving", function () {
+  var f = seeded("reducing");
+  var doc = helpers.loadApp(f.state).window.document;
+  loansTab(doc);
+
+  var field = doc.querySelector("[data-simpay]");
+  field.value = "2242.34";
+  field.onchange();
+
+  var charts = Array.prototype.filter.call(doc.querySelectorAll("#loanList svg"), function (s) {
+    return /Balance over time/.test(s.getAttribute("aria-label") || "");
+  });
+  assert.equal(charts.length, 1, "expected a baseline-against-accelerated chart");
+  assert.match(doc.getElementById("loanList").textContent, /As contractedPaying more/);
+});
+
 test("entering the contractual instalment reports no saving rather than a fake one", function () {
   var f = seeded("reducing");
   var doc = helpers.loadApp(f.state).window.document;

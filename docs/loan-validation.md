@@ -1,12 +1,20 @@
 # Loan engine validation
 
-**Status: NOT RECONCILED.** The engines pass worked examples. They have not yet been
-checked against a real Malaysian statement, so acceptance criteria **AC-2** and **AC-3**
-remain open and the Loans tab carries a warning saying so.
+**Status: PARTIALLY VERIFIED.** The engines pass worked examples. Full reconciliation against an itemised statement is
+still open, because few Malaysian statements break interest out per month.
+
+The obtainable check is the **monthly instalment**, which everyone knows from their
+standing instruction. It is a function of principal, rate, tenure and basis together, so a
+matching instalment is strong evidence that all four are entered correctly — and a wrong
+basis (flat modelled as reducing) produces a visibly different instalment, which is the R4
+failure this gate exists to catch. What an instalment match cannot confirm is the rest
+basis, which only affects reducing-balance loans and only by small amounts.
 
 Risk **R4** — flat rate implemented as reducing balance — is the highest-consequence risk
-in this programme, because it is quietly wrong rather than visibly broken. Charts on top of
-these numbers wait until this page says RECONCILED.
+in this programme, because it is quietly wrong rather than visibly broken. The instalment
+check catches exactly that failure, which is why charts are now built on these numbers
+while the itemised reconciliation stays open. Every figure carries its verification state
+on screen: a loan reads *Unverified* until a statement figure is entered.
 
 ---
 
@@ -65,17 +73,18 @@ enough to be visible.
 
 ## What is still needed — the gate
 
-Two real statements, checked **in the app**, not here.
+Checked **in the app**, not here.
 
 Open a liability on the Accounts tab and fill in **Check against a statement**: the
-statement month, the interest charged that month, the closing balance, and the instalment
-paid. The app compares its own schedule against those figures and reports the difference
-to the sen. The Loans tab then labels the loan *Matches statement*, *Close to statement*
-or *Disagrees with statement*.
+statement month, and whichever figures are to hand — interest charged, closing balance,
+instalment paid. The app compares its own schedule against them and reports the difference
+to the sen. The Loans tab then labels the loan *Unverified*, *Instalment verified*,
+*Matches statement*, *Close to statement*, or *Disagrees with statement*.
 
-Only the month plus one figure is needed to get a verdict; interest is the most telling,
-because it is what proves the engine is applying the right arithmetic rather than
-coincidentally landing on a similar instalment.
+**Start with the instalment.** It is the figure everyone has, and because it depends on
+principal, rate, tenure and basis simultaneously, a match confirms all four at once. An
+itemised interest figure, if one ever turns up, is what additionally settles the rest
+basis.
 
 **Nothing goes in this repository** (SEC-1). The figures are the owner's own data, stored
 in their data file alongside everything else, and can be edited or cleared at any time.

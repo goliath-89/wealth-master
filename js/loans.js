@@ -404,6 +404,12 @@
       return acc;
     }, parts.length ? "exact" : null);
 
+    // The instalment is a function of principal, rate, tenure AND basis together, so a
+    // matching instalment is strong evidence all four are right — even with no interest
+    // breakdown available. Most people know their monthly debit; few have a statement
+    // itemising interest. This is the check that is actually obtainable.
+    var termsVerified = !!(instalment && instalment.verdict === "exact");
+
     return {
       period: check.period,
       found: true,
@@ -411,6 +417,7 @@
       interest: interest,
       balance: balance,
       instalment: instalment,
+      termsVerified: termsVerified,
       verdict: worst,
       // Flat rate has no daily-rest ambiguity to hide behind, so "close" is not good
       // enough there — it is a failure with a small number attached.

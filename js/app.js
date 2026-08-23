@@ -438,7 +438,8 @@ function renderSimulator(l, s) {
         "</b> clears the loan in " + c.acceleratedMonths + " months rather than " + c.baselineMonths +
         (span ? " — <b>" + esc(span.trim()) + "</b> earlier" : "") +
         ", and cuts total interest from <b>" + esc(fmtRM(c.baselineInterest)) + "</b> to <b>" +
-        esc(fmtRM(c.acceleratedInterest)) + "</b>.</div>";
+        esc(fmtRM(c.acceleratedInterest)) + "</b>.</div>" +
+        drawPayoffChart(result.baseline, result.accelerated);
     }
   }
 
@@ -448,6 +449,89 @@ function renderSimulator(l, s) {
     '<label class="fl" for="sim_' + esc(l.id) + '">Monthly payment</label>' +
     '<input type="text" inputmode="decimal" id="sim_' + esc(l.id) + '" value="' +
     esc(WM.formatAmount(payment)) + '" data-simpay="' + esc(l.id) + '"></div></div>' + body2;
+}
+
+// Amortisation as a stacked area: interest below, principal above, per instalment
+// (FR-6.6). On a reducing loan the interest band tapers as the balance falls; on a flat
+// facility it is a constant slab, which makes the difference between the two visible at
+// a glance rather than only in the numbers.
+function drawAmortChart(schedule, simulated) {
+  if (!schedule.rows.length) return "";
+
+  var W = 720, H = 200, ml = 58, mr = 12, mt = 10, mb = 26;
+  var pw = W - ml - mr, ph = H - mt - mb;
+  var rows = schedule.rows;
+  var maxPay = rows.reduce(function (m, r) { return Math.max(m, r.payment); }, 0);
+  if (maxPay <= 0) return "";
+
+  var X = function (i) { return ml + (rows.length === 1 ? pw / 2 : (i / (rows.length - 1)) * pw); };
+  var Y = function (v) { return mt + ph - (v / maxPay) * ph; };
+
+  var body = "";
+  [0, maxPay / 2, maxPay].forEach(function (t) {
+    var y = Y(t);
+    body += '<line class="gridline" x1="' + ml + '" y1="' + y.toFixed(1) + '" x2="' + (W - mr) +
+      '" y2="' + y.toFixed(1) + '"></line>' +
+      '<text class="axis-t" x="' + (ml - 8) + '" y="' + (y + 3.5).toFixed(1) +
+      '" text-anchor="end">' + esc(shortRM(t)) + "</text>";
+  });
+
+  // Interest band from the baseline up; principal band stacked on top of it.
+  var interestTop = rows.map(function (r, i) { return X(i).toFixed(1) + "," + Y(r.interest).toFixed(1); });
+  var totalTop = rows.map(function (r, i) { return X(i).toFixed(1) + "," + Y(r.payment).toFixed(1); });
+
+  body += '<path d="M' + X(0).toFixed(1) + "," + Y(0).toFixed(1) + " L" + interestTop.join(" L") +
+    " L" + X(rows.length - 1).toFixed(1) + "," + Y(0).toFixed(1) +
+    ' Z" fill="var(--bad)" fill-opacity="0.55"></path>';
+  body += '<path d="M' + interestTop.join(" L") + " L" + totalTop.slice().reverse().join(" L") +
+    ' Z" fill="var(--accent)" fill-opacity="0.55"></path>';
+
+  var step = Math.max(1, Math.ceil(rows.length / 6));
+  rows.forEach(function (r, i) {
+    if (i % step !== 0 && i !== rows.length - 1) return;
+    body += '<text class="axis-t" x="' + X(i).toFixed(1) + '" y="' + (H - 8) +
+      '" text-anchor="middle">' + esc(r.period ? monthLabel(r.period) : String(r.n)) + "</text>";
+  });
+
+  return '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
+    'role="img" aria-label="Interest and principal per instalment over the life of the loan">' +
+    body + "</svg>" +
+    '<div class="legend">' +
+    '<span class="lg"><span class="lgd" style="background:var(--bad);opacity:.7"></span>Interest</span>' +
+    '<span class="lg"><span class="lgd" style="background:var(--accent);opacity:.7"></span>Principal</span>' +
+    "</div>";
+}
+
+// Baseline against accelerated balance over time (FR-6.7).
+function drawPayoffChart(baseline, accelerated) {
+  if (!baseline.rows.length || !accelerated.rows.length) return "";
+  var W = 720, H = 180, ml = 58, mr = 12, mt = 10, mb = 26;
+  var pw = W - ml - mr, ph = H - mt - mb;
+  var span = Math.max(baseline.rows.length, accelerated.rows.length);
+  var maxBal = baseline.principal;
+
+  var X = function (i) { return ml + (span === 1 ? pw / 2 : (i / (span - 1)) * pw); };
+  var Y = function (v) { return mt + ph - (v / maxBal) * ph; };
+
+  function line(rows, colour, dashed) {
+    var d = rows.map(function (r, i) { return X(i).toFixed(1) + "," + Y(r.balance).toFixed(1); });
+    return '<path d="M' + X(0).toFixed(1) + "," + Y(baseline.principal).toFixed(1) + " L" + d.join(" L") +
+      '" fill="none" stroke="' + colour + '" stroke-width="2" stroke-linejoin="round"' +
+      (dashed ? ' stroke-dasharray="5 4"' : "") + "></path>";
+  }
+
+  var body = '<line class="gridline" x1="' + ml + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - mr) +
+    '" y2="' + Y(0).toFixed(1) + '"></line>' +
+    '<text class="axis-t" x="' + (ml - 8) + '" y="' + (Y(maxBal) + 3.5).toFixed(1) +
+    '" text-anchor="end">' + esc(shortRM(maxBal)) + "</text>" +
+    line(baseline.rows, "var(--tx3)", true) + line(accelerated.rows, "var(--good)", false);
+
+  return '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
+    'role="img" aria-label="Balance over time, contractual against accelerated">' + body + "</svg>" +
+    '<div class="legend">' +
+    '<span class="lg"><span class="lgd" style="background:var(--tx3)"></span>As contracted</span>' +
+    '<span class="lg"><span class="lgd" style="background:var(--good)"></span>Paying more</span>' +
+    "</div>";
 }
 
 function renderLoans() {
@@ -506,9 +590,14 @@ function renderLoans() {
     if (rec && rec.found) {
       checkTag = rec.verdict === "exact"
         ? '<span class="tag good">Matches statement</span>'
-        : rec.verdict === "close" && !rec.mustBeExact
-          ? '<span class="tag">Close to statement</span>'
-          : '<span class="tag" style="background:rgba(226,80,79,.16);color:#f08585">Disagrees with statement</span>';
+        : rec.termsVerified
+          // The instalment matched even though something else did not — the terms are
+          // right, so the schedule's shape can be trusted even if a rest-basis detail
+          // is still off.
+          ? '<span class="tag good">Instalment verified</span>'
+          : rec.verdict === "close" && !rec.mustBeExact
+            ? '<span class="tag">Close to statement</span>'
+            : '<span class="tag" style="background:rgba(226,80,79,.16);color:#f08585">Disagrees with statement</span>';
     }
 
     var sim = renderSimulator(l, s);
@@ -526,7 +615,8 @@ function renderLoans() {
       '<div><div class="k">Effective rate</div><div class="v">' + esc(pct(s.effectiveRatePct)) + "</div></div>" +
       '<div><div class="k">Payoff</div><div class="v">' + esc(s.payoffPeriod ? monthLabel(s.payoffPeriod) : "—") + "</div></div>" +
       (pos ? '<div><div class="k">Paid so far</div><div class="v">' + pos.instalmentsPaid + " / " + s.months + "</div></div>" : "") +
-      "</div>" + cmp + sim +
+      "</div>" +
+      drawAmortChart(s) + cmp + sim +
       '<button class="btn sm" data-sched="' + esc(l.id) + '">' +
       (open ? "Hide schedule" : "Show schedule (" + s.months + " rows)") + "</button>" +
       (open ? '<div class="tscroll"><table><thead><tr><th>#</th><th>Month</th>' +

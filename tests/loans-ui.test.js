@@ -114,23 +114,54 @@ test("an instalment too small to cover interest is reported, not silently looped
   assert.match(doc.getElementById("loanList").textContent, /never reduces/);
 });
 
-test("the Loans tab warns that the engines are not yet reconciled to a real statement", function () {
+test("the Loans tab tells the owner how to confirm their own figures", function () {
   var f = seeded("flat");
   var doc = helpers.loadApp(f.state).window.document;
   loansTab(doc);
-  // Until AC-2 and AC-3 are met this must stay on screen (R4).
+  // The engines are proven against worked examples; what is unproven is whether THIS
+  // owner's terms are right. The instalment is the check they can actually perform,
+  // since few statements itemise interest but everyone knows their monthly debit.
   var view = doc.getElementById("v-loans").textContent;
-  assert.match(view, /Not yet reconciled/);
-  assert.match(view, /illustrative/);
+  assert.match(view, /Check the instalment/);
+  assert.match(view, /matches your actual monthly debit/);
 });
 
-test("no amortisation chart is drawn before the engines are reconciled", function () {
+test("a loan is labelled unverified until a statement figure is entered", function () {
   var f = seeded("flat");
   var doc = helpers.loadApp(f.state).window.document;
   loansTab(doc);
-  doc.querySelector("[data-sched]").click();
-  assert.equal(doc.querySelector("#v-loans svg"), null,
-    "the plan gates charts behind statement reconciliation");
+  assert.match(doc.getElementById("loanList").textContent, /Unverified/);
+});
+
+test("a matching instalment alone marks the terms verified", function () {
+  var f = seeded("flat");
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+
+  doc.querySelector('.tab[data-v="accounts"]').click();
+  doc.querySelector('[data-edit-liab="' + f.loan.id + '"]').click();
+  doc.getElementById("c_period").value = "2024-03";
+  doc.getElementById("c_instalment").value = "1326.43";
+  doc.getElementById("liabSave").click();
+
+  loansTab(doc);
+  // Instalment depends on principal, rate, tenure and basis together, so matching it
+  // is strong evidence for all four even with no interest breakdown.
+  assert.match(doc.getElementById("loanList").textContent, /Matches statement|Instalment verified/);
+});
+
+test("the amortisation chart renders interest and principal bands", function () {
+  var f = seeded("flat");
+  var doc = helpers.loadApp(f.state).window.document;
+  loansTab(doc);
+
+  var svg = doc.querySelector("#loanList svg");
+  assert.ok(svg, "expected an inline SVG amortisation chart");
+  assert.match(svg.getAttribute("aria-label"), /Interest and principal/);
+  assert.equal(doc.querySelectorAll("#loanList svg path").length >= 2, true,
+    "one band for interest, one for principal");
+  assert.match(doc.getElementById("loanList").textContent, /InterestPrincipal/,
+    "the legend names both bands, so colour is not the only signal");
 });
 
 test("with no liabilities the tab explains where to add one", function () {
