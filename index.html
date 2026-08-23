@@ -181,6 +181,20 @@ input[type=checkbox]{width:20px;height:20px;min-height:20px;accent-color:var(--a
 svg.chart{display:block;width:100%;height:auto;overflow:visible}
 .gridline{stroke:var(--line);stroke-width:1}
 .axis-t{font-size:10.5px;fill:var(--tx3)}
+.lsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0}
+.lsum div{background:var(--surface2);border:.5px solid var(--line);border-radius:var(--r);padding:10px 12px}
+.lsum .k{font-size:11px;color:var(--tx2)}
+.lsum .v{font-size:16px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:460px}
+th{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3);
+   text-align:left;padding:8px 10px;border-bottom:.5px solid var(--line);white-space:nowrap}
+th.r,td.r{text-align:right}
+td{padding:8px 10px;border-bottom:.5px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+tbody tr.paid td{color:var(--tx3)}
+.cmp{font-size:12.5px;color:var(--tx2);line-height:1.6;margin-top:10px}
+.cmp b{color:var(--tx)}
 .snack{
   position:fixed;left:50%;transform:translateX(-50%) translateY(120px);
   bottom:calc(18px + env(safe-area-inset-bottom));background:var(--surface3);
@@ -203,6 +217,7 @@ svg.chart{display:block;width:100%;height:auto;overflow:visible}
     <button class="tab on" data-v="worth">Net worth</button>
     <button class="tab" data-v="month">Month</button>
     <button class="tab" data-v="accounts">Accounts</button>
+    <button class="tab" data-v="loans">Loans</button>
     <button class="tab" data-v="data">Data</button>
   </nav>
 </header>
@@ -274,6 +289,18 @@ svg.chart{display:block;width:100%;height:auto;overflow:visible}
       <button class="btn sm" id="addLiabBtn">+ Liability</button>
     </div>
     <div id="liabList"></div>
+  </div>
+</div>
+
+<div class="view" id="v-loans">
+  <div class="sec">
+    <div class="sec-h"><div class="sec-t">Loan schedules</div></div>
+    <div id="loanList"></div>
+  </div>
+  <div class="sec">
+    <div class="warnbox">
+      <b>Not yet reconciled.</b> These schedules are computed from the terms you entered and are verified against worked examples, but not yet against your own statements. Until a real hire purchase and a real mortgage statement match to the sen, treat them as illustrative. See <code>docs/loan-validation.md</code>.
+    </div>
   </div>
 </div>
 
@@ -591,6 +618,7 @@ svg.chart{display:block;width:100%;height:auto;overflow:visible}
 <script src="js/entities.js"></script>
 <script src="js/valuations.js"></script>
 <script src="js/networth.js"></script>
+<script src="js/loans.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

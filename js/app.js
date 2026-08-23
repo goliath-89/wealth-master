@@ -285,6 +285,90 @@ function shortRM(n) {
   return sign + "RM " + Math.round(abs);
 }
 
+// ---- loan schedules --------------------------------------------------------
+
+var openSchedules = {};
+
+function pct(n) {
+  return n === null || n === undefined || isNaN(n) ? "—" : Number(n).toFixed(2) + "%";
+}
+
+function renderLoans() {
+  var list = WM.live(state.liabilities);
+  if (!list.length) {
+    $("loanList").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">No loans</div>' +
+      '<div class="es">Add a liability on the Accounts tab to see its schedule.</div></div></div>';
+    return;
+  }
+
+  var period = WM.currentPeriod();
+  $("loanList").innerHTML = list.map(function (l) {
+    var s = WM.scheduleFor(l);
+
+    if (s.error) {
+      return '<div class="card" style="margin-bottom:12px"><div class="acct-h">' +
+        '<span class="acct-n">' + esc(l.name) + "</span></div>" +
+        '<div class="dangerbox" style="margin-top:10px">' + esc(s.error) + "</div></div>";
+    }
+    if (!s.rows.length) {
+      return '<div class="card" style="margin-bottom:12px"><div class="acct-h">' +
+        '<span class="acct-n">' + esc(l.name) + "</span>" +
+        '<span class="tag">' + (l.rateBasis === "flat" ? "Flat rate" : "Reducing") + "</span></div>" +
+        '<p class="note" style="margin-top:8px">Enter principal, rate and tenure to see a schedule.</p></div>';
+    }
+
+    var pos = WM.positionInSchedule(s, period);
+    var open = !!openSchedules[l.id];
+
+    // The same terms on the other basis. For a hire purchase this is the number that
+    // shows what the flat quote actually costs.
+    var other = l.rateBasis === "flat"
+      ? WM.reducingSchedule({ principal: l.principal, ratePct: l.ratePct, tenureMonths: l.tenureMonths })
+      : WM.flatSchedule({ principal: l.principal, ratePct: l.ratePct, tenureMonths: l.tenureMonths });
+    var cmp = "";
+    if (other.rows.length && l.rateBasis === "flat") {
+      cmp = '<div class="cmp">At the same quoted rate on a reducing basis this loan would cost <b>' +
+        esc(fmtRM(other.totalInterest)) + "</b> in interest instead of <b>" + esc(fmtRM(s.totalInterest)) +
+        "</b> — a flat quote of " + esc(pct(l.ratePct)) + " really costs about <b>" +
+        esc(pct(s.effectiveRatePct)) + "</b> a year.</div>";
+    }
+
+    var rows = s.rows.map(function (r) {
+      var isPaid = r.period && r.period <= period;
+      return '<tr' + (isPaid ? ' class="paid"' : "") + "><td>" + r.n + "</td><td>" +
+        esc(r.period ? monthLabel(r.period) : "—") + '</td><td class="r">' + esc(fmtRM(r.payment)) +
+        '</td><td class="r">' + esc(fmtRM(r.interest)) + '</td><td class="r">' + esc(fmtRM(r.principal)) +
+        '</td><td class="r">' + esc(fmtRM(r.balance)) + "</td></tr>";
+    }).join("");
+
+    return '<div class="card" style="margin-bottom:12px">' +
+      '<div class="acct-h"><span class="acct-n">' + esc(l.name) + "</span>" +
+      '<span class="tag">' + (s.basis === "flat" ? "Flat rate" : "Reducing balance") + "</span>" +
+      '<span class="tag">' + esc(pct(l.ratePct)) + "</span>" +
+      "</div>" +
+      '<div class="lsum">' +
+      '<div><div class="k">Instalment</div><div class="v">' + esc(fmtRM(s.instalment)) + "</div></div>" +
+      '<div><div class="k">Total interest</div><div class="v">' + esc(fmtRM(s.totalInterest)) + "</div></div>" +
+      '<div><div class="k">Total payable</div><div class="v">' + esc(fmtRM(s.totalPaid)) + "</div></div>" +
+      '<div><div class="k">Effective rate</div><div class="v">' + esc(pct(s.effectiveRatePct)) + "</div></div>" +
+      '<div><div class="k">Payoff</div><div class="v">' + esc(s.payoffPeriod ? monthLabel(s.payoffPeriod) : "—") + "</div></div>" +
+      (pos ? '<div><div class="k">Paid so far</div><div class="v">' + pos.instalmentsPaid + " / " + s.months + "</div></div>" : "") +
+      "</div>" + cmp +
+      '<button class="btn sm" data-sched="' + esc(l.id) + '">' +
+      (open ? "Hide schedule" : "Show schedule (" + s.months + " rows)") + "</button>" +
+      (open ? '<div class="tscroll"><table><thead><tr><th>#</th><th>Month</th>' +
+        '<th class="r">Payment</th><th class="r">Interest</th><th class="r">Principal</th>' +
+        '<th class="r">Balance</th></tr></thead><tbody>' + rows + "</tbody></table></div>" : "") +
+      "</div>";
+  }).join("");
+
+  bindAll("[data-sched]", "data-sched", function (id) {
+    openSchedules[id] = !openSchedules[id];
+    renderLoans();
+  });
+}
+
 // ---- physical assets -------------------------------------------------------
 
 function renderAssets() {
@@ -888,6 +972,7 @@ function render() {
   renderTree();
   renderLiabilities();
   renderAssets();
+  renderLoans();
 
   var counts = [
     ["Institutions", liveCount(state.institutions)],
