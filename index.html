@@ -359,6 +359,14 @@ tbody tr.paid td{color:var(--tx3)}
     <div id="assumptions"></div>
   </div>
   <div class="sec">
+    <div class="sec-h">
+      <div class="sec-t">Goals</div>
+      <div class="spacer"></div>
+      <button class="btn sm" id="addGoalBtn">+ Goal</button>
+    </div>
+    <div id="goalList"></div>
+  </div>
+  <div class="sec">
     <div class="sec-h"><div class="sec-t">Overpay a loan, or invest?</div></div>
     <div class="card">
       <p class="note" style="margin-bottom:12px">If you had spare money each month, where should it go? Both options here spend the same amount and are valued at the same date — including the instalment that frees up once a loan is cleared.</p>
@@ -527,6 +535,39 @@ tbody tr.paid td{color:var(--tx3)}
       <button class="btn" data-close="acctModal">Cancel</button>
       <div class="spacer"></div>
       <button class="btn dgr sm" id="acctDelete" style="display:none">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="goalModal">
+  <div class="modal">
+    <div class="modal-t" id="goalModalT">Add goal</div>
+    <div class="errbox" id="goalErr"></div>
+    <div class="fgrid">
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="g_name">What for</label>
+        <input type="text" id="g_name" placeholder="House deposit">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="g_target">Target amount</label>
+        <input type="text" inputmode="decimal" id="g_target" placeholder="—">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="g_date">By when</label>
+        <input type="month" id="g_date">
+      </div>
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="g_holdings">Funded by</label>
+        <select id="g_holdings" multiple size="4"></select>
+      </div>
+    </div>
+    <p class="note" style="margin-top:10px">Leave "funded by" empty to count every liquid holding. Illiquid accounts like EPF are never counted toward a goal — money you cannot reach will not pay for it.</p>
+    <hr class="hr">
+    <div class="row">
+      <button class="btn pri" id="goalSave">Save</button>
+      <button class="btn" data-close="goalModal">Cancel</button>
+      <div class="spacer"></div>
+      <button class="btn dgr sm" id="goalDelete" style="display:none">Delete</button>
     </div>
   </div>
 </div>
@@ -761,6 +802,7 @@ tbody tr.paid td{color:var(--tx3)}
 <script src="js/analytics.js"></script>
 <script src="js/forecast.js"></script>
 <script src="js/decisions.js"></script>
+<script src="js/goals.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

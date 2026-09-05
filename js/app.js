@@ -457,6 +457,123 @@ function openScenario(id) {
   openModal("scenarioModal");
 }
 
+// ---- goals (S5) ------------------------------------------------------------
+
+var GOAL_WORDS = {
+  "on-track": "On track",
+  "behind": "Behind",
+  "reached": "Reached",
+  "overdue": "Date passed",
+  "unknown": "No contributions recorded",
+  "no-date": "No target date",
+  "no-target": "No target amount"
+};
+
+function renderGoals() {
+  var list = WM.live(state.goals);
+  if (!list.length) {
+    $("goalList").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">No goals</div>' +
+      '<div class="es">Set a target and a date to see whether you are on track for it.</div>' +
+      '<button class="btn pri" id="firstGoalBtn">Add first goal</button></div></div>';
+    wire("firstGoalBtn", function () { openGoal(null); });
+    return;
+  }
+
+  // Growth taken from the Base scenario, so a goal and the forecast never disagree.
+  var base = activeScenarios().filter(function (s) { return s.name === "Base"; })[0] || activeScenarios()[0];
+  var growthPct = base && base.growthAssumptions ? base.growthAssumptions.investment : 4;
+
+  $("goalList").innerHTML = WM.progressAll(state, { growthPct: growthPct }).map(function (p) {
+    var cls = p.status === "on-track" || p.status === "reached" ? "up"
+      : p.status === "behind" || p.status === "overdue" ? "dn" : "neu";
+
+    var detail = "";
+    if (p.status === "behind") {
+      detail = "Putting aside " + esc(fmtRM(p.actualMonthly)) + " a month against " +
+        esc(fmtRM(p.requiredMonthly)) + " needed" +
+        (p.monthsAtCurrentRate
+          ? " — at this rate you get there in " + p.monthsAtCurrentRate + " months, not " + p.monthsRemaining
+          : " — at this rate it does not get there") + ".";
+    } else if (p.status === "on-track") {
+      detail = "Putting aside " + esc(fmtRM(p.actualMonthly)) + " a month, against " +
+        esc(fmtRM(p.requiredMonthly)) + " needed.";
+    } else if (p.status === "reached") {
+      detail = "Target met.";
+    } else if (p.status === "overdue") {
+      detail = "The target date has passed with " + esc(fmtRM(p.shortfall)) + " still to find.";
+    } else if (p.status === "unknown") {
+      detail = p.requiredMonthly !== null
+        ? "Needs " + esc(fmtRM(p.requiredMonthly)) + " a month. Record contributions on the Month tab to track progress."
+        : "Record contributions on the Month tab to track progress.";
+    } else if (p.status === "no-date") {
+      detail = "Add a target date to see what it needs each month.";
+    }
+
+    var pctWidth = Math.max(0, Math.min(100, p.pctComplete));
+    return '<div class="acct"><div class="acct-h">' +
+      '<span class="acct-n">' + esc(p.name) + "</span>" +
+      '<span class="tag ' + (cls === "up" ? "good" : "") + '">' + esc(GOAL_WORDS[p.status] || p.status) + "</span>" +
+      '<div class="spacer"></div>' +
+      '<span class="wv">' + esc(fmtRM(p.current)) + " of " + esc(fmtRM(p.target)) + "</span>" +
+      '<button class="btn sm" data-edit-goal="' + esc(p.goalId) + '">Edit</button></div>' +
+      '<div style="height:6px;border-radius:3px;background:var(--surface3);margin-top:8px;overflow:hidden">' +
+      '<div style="height:100%;width:' + pctWidth + '%;background:var(--' +
+      (cls === "dn" ? "bad" : "good") + ')"></div></div>' +
+      '<div class="prev">' + esc(p.pctComplete) + "% · " + detail + "</div></div>";
+  }).join("");
+
+  bindAll("[data-edit-goal]", "data-edit-goal", openGoal);
+}
+
+function openGoal(id) {
+  editing.goal = id;
+  var g = id ? WM.byId(state.goals, id) : null;
+  $("goalModalT").textContent = g ? "Edit goal" : "Add goal";
+  $("g_name").value = g ? g.name : "";
+  $("g_target").value = g ? WM.formatAmount(g.targetAmount) : "";
+  $("g_date").value = g && g.targetDate ? String(g.targetDate).slice(0, 7) : "";
+
+  var linked = (g && g.linkedHoldingIds) || [];
+  $("g_holdings").innerHTML = WM.contributingHoldings(state).map(function (h) {
+    var acct = WM.byId(state.accounts, h.accountId);
+    return '<option value="' + esc(h.id) + '"' + (linked.indexOf(h.id) !== -1 ? " selected" : "") + ">" +
+      esc((acct ? acct.name + " · " : "") + h.name) + "</option>";
+  }).join("");
+
+  $("goalDelete").style.display = g ? "" : "none";
+  showErrors("goalErr", []);
+  openModal("goalModal");
+}
+
+$("goalSave").onclick = function () {
+  var target = WM.parseAmount($("g_target").value);
+  var errors = [];
+  if (target.error) errors.push("Target amount must be a number");
+  var date = $("g_date").value;
+  if (date && !WM.isPeriod(date)) errors.push("Target date must be a valid month");
+
+  var rec = {
+    id: editing.goal || undefined,
+    name: $("g_name").value.trim(),
+    targetAmount: target.value,
+    targetDate: date || null,
+    linkedHoldingIds: Array.prototype.filter.call($("g_holdings").options, function (o) {
+      return o.selected;
+    }).map(function (o) { return o.value; })
+  };
+  errors = errors.concat(WM.validate("goals", rec, state));
+  if (showErrors("goalErr", errors)) return;
+
+  WM.upsert(state, "goals", rec, deviceId);
+  closeModal("goalModal");
+  commit();
+  toast(editing.goal ? "Goal updated" : "Goal added");
+};
+
+$("goalDelete").onclick = function () { removeRecord("goals", editing.goal, "goalModal", "Goal"); };
+$("addGoalBtn").onclick = function () { openGoal(null); };
+
 // ---- overpay or invest (S3) ------------------------------------------------
 
 function renderDecision() {
@@ -1369,7 +1486,7 @@ function bindAll(selector, attr, fn) {
 
 // ---- editors ---------------------------------------------------------------
 
-var editing = { inst: null, acct: null, hold: null, liab: null, asset: null, scenario: null };
+var editing = { inst: null, acct: null, hold: null, liab: null, asset: null, scenario: null, goal: null };
 
 function openModal(id) { $(id).classList.add("on"); }
 function closeModal(id) { $(id).classList.remove("on"); }
@@ -1645,6 +1762,7 @@ function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
   renderWorth();
   renderForecast();
+  renderGoals();
   renderDecision();
   renderAllocation();
   renderPidm();
