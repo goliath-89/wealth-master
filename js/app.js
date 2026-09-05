@@ -962,6 +962,68 @@ function drawPayoffChart(baseline, accelerated) {
     "</div>";
 }
 
+// Only shown with two or more debts — with one, "which first" is not a question.
+function renderStrategy() {
+  var debts = WM.live(state.liabilities);
+  if (debts.length < 2) { $("strategyWrap").style.display = "none"; return; }
+
+  var extra = WM.parseAmount($("strat_extra").value);
+  if (extra.error) {
+    $("strategyWrap").style.display = "";
+    $("strategyResult").innerHTML = '<div class="dangerbox">That must be a number.</div>';
+    return;
+  }
+
+  var cmp = WM.compare(state, extra.value || 0);
+  if (!cmp) { $("strategyWrap").style.display = "none"; return; }
+  $("strategyWrap").style.display = "";
+
+  var order = WM.costOrder(state);
+  var misranked = order.filter(function (d) { return d.understated; });
+
+  function months(n) {
+    var y = Math.floor(n / 12), m = n % 12;
+    return (y ? y + (y === 1 ? " yr " : " yrs ") : "") + (m ? m + " mths" : "");
+  }
+
+  var best = cmp[cmp.best];
+  var rows = best.order.map(function (o, i) {
+    return "<li><b>" + esc(o.name) + "</b> — cleared month " + o.month +
+      " (" + esc(o.via) + ")</li>";
+  }).join("");
+
+  // A quoted rate can rank a hire purchase as the cheapest debt when it is the dearest.
+  // Say so plainly, because it inverts the whole answer.
+  var flatNote = misranked.length
+    ? '<div class="warnbox" style="margin-top:12px"><b>Ranked by real cost.</b> ' +
+      misranked.map(function (d) {
+        return esc(d.name) + " quotes " + esc(pct(d.quotedRatePct)) + " flat but actually costs <b>" +
+          esc(pct(d.effectiveRatePct)) + "</b>";
+      }).join("; ") + ". Ordering by the quoted figure would pay it off last when it should " +
+      "be first. Extra money cannot reduce a flat-rate loan's charges either, so here it is " +
+      "accumulated until the facility can be settled outright.</div>"
+    : "";
+
+  $("strategyResult").innerHTML =
+    '<p class="note" style="margin-bottom:12px">With ' + esc(fmtRM(extra.value || 0)) +
+    " a month spare on top of every minimum. When a debt clears, its instalment rolls into the next.</p>" +
+    '<div class="lsum">' +
+    '<div><div class="k">Best order</div><div class="v" style="font-size:17px">' +
+      (cmp.best === "avalanche" ? "Dearest first" : "Smallest first") + "</div></div>" +
+    '<div><div class="k">Debt-free in</div><div class="v">' + esc(months(best.monthsToDebtFree)) + "</div></div>" +
+    '<div><div class="k">Interest saved</div><div class="v">' + esc(fmtRM(cmp.interestSavedVsMinimums)) +
+      '</div><div class="k" style="margin-top:4px">vs minimums only</div></div>' +
+    '<div><div class="k">Time saved</div><div class="v">' + esc(months(cmp.monthsSavedVsMinimums)) + "</div></div>" +
+    "</div>" +
+    flatNote +
+    '<div class="cmp"><b>Order to clear them in:</b><ul class="losslist">' + rows + "</ul>" +
+    (cmp.avalancheAdvantage > 0
+      ? "Paying the dearest first saves <b>" + esc(fmtRM(cmp.avalancheAdvantage)) +
+        "</b> more than paying the smallest first. If clearing a small debt quickly would keep " +
+        "you going, that is a reasonable trade for the difference."
+      : "Both orders cost the same here, so take whichever keeps you at it.") + "</div>";
+}
+
 function renderLoans() {
   var list = WM.live(state.liabilities);
   if (!list.length) {
@@ -1795,6 +1857,7 @@ $("scenarioSave").onclick = function () {
 };
 
 $("horizon").onchange = function () { renderForecast(); renderDecision(); };
+$("strat_extra").onchange = renderStrategy;
 $("dec_loan").onchange = renderDecision;
 $("dec_amount").onchange = renderDecision;
 $("dec_growth").onchange = renderDecision;
@@ -1830,6 +1893,7 @@ function render() {
   renderTree();
   renderLiabilities();
   renderAssets();
+  renderStrategy();
   renderLoans();
 
   var counts = [

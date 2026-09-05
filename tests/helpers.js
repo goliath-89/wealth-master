@@ -51,6 +51,7 @@ function loadLib(window) {
   delete require.cache[require.resolve("../js/forecast.js")];
   delete require.cache[require.resolve("../js/decisions.js")];
   delete require.cache[require.resolve("../js/goals.js")];
+  delete require.cache[require.resolve("../js/strategy.js")];
   var schema = require("../js/schema.js");
   var store = require("../js/store.js");
   var migrateFundDesk = require("../js/migrate-funddesk.js");
@@ -64,9 +65,10 @@ function loadLib(window) {
   var forecast = require("../js/forecast.js");
   var decisions = require("../js/decisions.js");
   var goals = require("../js/goals.js");
+  var strategy = require("../js/strategy.js");
   return {
     schema: schema, store: store, migrateFundDesk: migrateFundDesk,
-    importGuard: importGuard, csv: csv, entities: entities, valuations: valuations, networth: networth, loans: loans, analytics: analytics, forecast: forecast, decisions: decisions, goals: goals
+    importGuard: importGuard, csv: csv, entities: entities, valuations: valuations, networth: networth, loans: loans, analytics: analytics, forecast: forecast, decisions: decisions, goals: goals, strategy: strategy
   };
 }
 
@@ -95,7 +97,7 @@ function loadApp(seedState) {
   };
 
   ["js/schema.js", "js/store.js", "js/migrate-funddesk.js", "js/import-guard.js",
-   "js/csv.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/app.js"].forEach(function (rel) {
+   "js/csv.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/strategy.js", "js/app.js"].forEach(function (rel) {
     var code = fs.readFileSync(path.join(ROOT, rel), "utf8");
     window.eval(code);
   });
