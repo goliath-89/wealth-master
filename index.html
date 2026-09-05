@@ -358,6 +358,27 @@ tbody tr.paid td{color:var(--tx3)}
     </div>
     <div id="assumptions"></div>
   </div>
+  <div class="sec">
+    <div class="sec-h"><div class="sec-t">Overpay a loan, or invest?</div></div>
+    <div class="card">
+      <p class="note" style="margin-bottom:12px">If you had spare money each month, where should it go? Both options here spend the same amount and are valued at the same date — including the instalment that frees up once a loan is cleared.</p>
+      <div class="fgrid">
+        <div class="fitem">
+          <label class="fl" for="dec_loan">Loan</label>
+          <select id="dec_loan"></select>
+        </div>
+        <div class="fitem">
+          <label class="fl" for="dec_amount">Spare each month</label>
+          <input type="text" inputmode="decimal" id="dec_amount" value="RM 500">
+        </div>
+        <div class="fitem">
+          <label class="fl" for="dec_growth">Investment returns % p.a.</label>
+          <input type="number" id="dec_growth" step="0.1" value="6">
+        </div>
+      </div>
+      <div id="decisionResult"></div>
+    </div>
+  </div>
 </div>
 
 <div class="view" id="v-data">
@@ -739,6 +760,7 @@ tbody tr.paid td{color:var(--tx3)}
 <script src="js/loans.js"></script>
 <script src="js/analytics.js"></script>
 <script src="js/forecast.js"></script>
+<script src="js/decisions.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

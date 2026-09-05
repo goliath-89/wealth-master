@@ -457,6 +457,87 @@ function openScenario(id) {
   openModal("scenarioModal");
 }
 
+// ---- overpay or invest (S3) ------------------------------------------------
+
+function renderDecision() {
+  var loansList = WM.live(state.liabilities);
+  var sel = $("dec_loan");
+
+  if (!loansList.length) {
+    sel.innerHTML = "";
+    $("decisionResult").innerHTML = '<p class="note" style="margin-top:12px">' +
+      "Add a loan on the Accounts tab to compare against investing.</p>";
+    return;
+  }
+
+  var previous = sel.value;
+  sel.innerHTML = options(loansList, previous || loansList[0].id);
+  if (previous) sel.value = previous;
+
+  var liability = WM.byId(state.liabilities, sel.value) || loansList[0];
+  var amount = WM.parseAmount($("dec_amount").value);
+  var growth = parseFloat($("dec_growth").value);
+  var months = parseInt($("horizon").value, 10) || 120;
+
+  if (amount.error) {
+    $("decisionResult").innerHTML = '<div class="dangerbox" style="margin-top:12px">' +
+      "The monthly amount must be a number.</div>";
+    return;
+  }
+
+  var res = WM.overpayVsInvest(liability, {
+    monthlyAmount: amount.value || 0,
+    growthPct: isNaN(growth) ? 0 : growth,
+    horizonMonths: months
+  });
+
+  if (!res) {
+    $("decisionResult").innerHTML = '<p class="note" style="margin-top:12px">' +
+      "Enter this loan's principal, rate and tenure to compare it.</p>";
+    return;
+  }
+
+  var years = Math.round(months / 12);
+
+  if (res.flatRate) {
+    // No overpay branch: inventing a saving here would be the R4 trap again.
+    $("decisionResult").innerHTML = '<div class="warnbox" style="margin-top:12px"><b>Invest it.</b> ' +
+      esc(res.reason) + "</div>" +
+      '<div class="lsum">' +
+      '<div><div class="k">Invested over ' + years + " yrs</div><div class=\"v\">" +
+        esc(fmtRM(res.investOnly)) + "</div></div>" +
+      (res.settlement ? '<div><div class="k">Or settle now for</div><div class="v">' +
+        esc(fmtRM(res.settlement.settlementAmount)) + '</div></div>' +
+        '<div><div class="k">Rebate if settled</div><div class="v">' +
+        esc(fmtRM(res.settlement.rebate)) + "</div></div>" : "") +
+      "</div>";
+    return;
+  }
+
+  var winner = res.verdict === "similar" ? "Line ball"
+    : res.verdict === "overpay" ? "Overpay the loan" : "Invest the money";
+  var box = res.verdict === "similar" ? "warnbox" : "warnbox";
+
+  $("decisionResult").innerHTML =
+    '<div class="' + box + '" style="margin-top:12px"><b>' + esc(winner) + ".</b> " +
+    (res.verdict === "similar" ? "" : "Ahead by <b>" + esc(fmtRM(res.difference)) +
+      "</b> after " + years + " years. ") + esc(res.reason) + "</div>" +
+    '<div class="lsum">' +
+    '<div><div class="k">Overpaying</div><div class="v">' + esc(fmtRM(res.overpay.netAtHorizon)) +
+      '</div><div class="k" style="margin-top:4px">clears ' + res.overpay.monthsSaved +
+      " mths early, saves " + esc(fmtRM(res.overpay.interestSaved)) + " interest</div></div>" +
+    '<div><div class="k">Investing</div><div class="v">' + esc(fmtRM(res.invest.netAtHorizon)) +
+      '</div><div class="k" style="margin-top:4px">' +
+      (res.invest.debtRemaining ? esc(fmtRM(res.invest.debtRemaining)) + " still owed at that point"
+        : "loan repaid on schedule") + "</div></div>" +
+    "</div>" +
+    '<div class="cmp">Both spend <b>' + esc(fmtRM(res.monthlyAmount)) + "</b> a month and are valued at the " +
+    "same date. The loan costs <b>" + esc(pct(res.loanRatePct)) + "</b>; the comparison assumes investments " +
+    "return <b>" + esc(pct(res.growthPct)) + "</b>. Overpaying stops winning above roughly <b>" +
+    esc(pct(WM.breakEvenGrowth(liability, { monthlyAmount: res.monthlyAmount, horizonMonths: months }))) +
+    "</b> — and unlike the loan's interest, a return is an assumption rather than a certainty.</div>";
+}
+
 // ---- allocation and PIDM ---------------------------------------------------
 
 // Categorical palette, reused across the app. Chosen to stay distinguishable in both
@@ -1538,7 +1619,10 @@ $("scenarioSave").onclick = function () {
   toast(sc.name + " assumptions updated");
 };
 
-$("horizon").onchange = renderForecast;
+$("horizon").onchange = function () { renderForecast(); renderDecision(); };
+$("dec_loan").onchange = renderDecision;
+$("dec_amount").onchange = renderDecision;
+$("dec_growth").onchange = renderDecision;
 $("realTerms").onchange = renderForecast;
 
 $("addInstBtn").onclick = function () { openInst(null); };
@@ -1561,6 +1645,7 @@ function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
   renderWorth();
   renderForecast();
+  renderDecision();
   renderAllocation();
   renderPidm();
   renderMonth();
