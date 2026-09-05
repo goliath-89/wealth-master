@@ -93,6 +93,16 @@
     6: function (o) {
       if (!Array.isArray(o.loanChecks)) o.loanChecks = [];
       return o;
+    },
+
+    // v7 -> v8: holdings can be tagged with a Malaysian tax relief category. Existing
+    // holdings are set to null explicitly rather than left undefined — not eligible is
+    // the safe default, and the field should be uniform for export.
+    7: function (o) {
+      (o.holdings || []).forEach(function (h) {
+        if (h.reliefCategory === undefined) h.reliefCategory = null;
+      });
+      return o;
     }
   };
 

@@ -457,6 +457,69 @@ function openScenario(id) {
   openModal("scenarioModal");
 }
 
+// ---- tax relief (S6) -------------------------------------------------------
+
+function renderRelief() {
+  var years = WM.yearsWithContributions(state);
+  var sel = $("taxYear");
+  var current = String(new Date().getFullYear());
+  if (!years.length) years = [current];
+
+  var chosen = sel.value && years.indexOf(sel.value) !== -1 ? sel.value : years[0];
+  sel.innerHTML = years.map(function (y) {
+    return '<option value="' + esc(y) + '"' + (y === chosen ? " selected" : "") + ">" + esc(y) + "</option>";
+  }).join("");
+
+  var t = WM.totalsFor(state, chosen);
+
+  if (!t.lines.length) {
+    $("reliefList").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">Nothing tagged for ' + esc(chosen) + "</div>" +
+      '<div class="es">Tag a holding with a relief category when editing it, then record its contributions on the Month tab.</div></div></div>';
+  } else {
+    $("reliefList").innerHTML = '<div class="card">' + t.lines.map(function (l) {
+      var over = l.overLimit;
+      return '<div class="wline"><div class="wn">' + esc(l.label) +
+        '<div class="ws">' + esc(fmtRM(l.contributed)) + " paid in" +
+        (l.withdrawn ? ", less " + esc(fmtRM(l.withdrawn)) + " withdrawn" : "") +
+        (l.limit ? " · limit " + esc(fmtRM(l.limit)) : " · no limit set") +
+        (l.headroom !== null && !over && l.headroom > 0 ? " · " + esc(fmtRM(l.headroom)) + " headroom" : "") +
+        "</div></div>" +
+        '<div class="wv' + (over ? " stale" : "") + '">' + esc(fmtRM(l.claimable)) +
+        (over ? '<span class="stale-mark" title="capped at the limit">*</span>' : "") + "</div></div>";
+    }).join("") +
+      '<div class="subtot"><span>Total to claim</span><span class="wv">' +
+      esc(fmtRM(t.totalClaimable)) + "</span></div>" +
+      (t.totalContributed > t.totalClaimable
+        ? '<div class="prev">* ' + esc(fmtRM(t.totalContributed)) + " was contributed; the rest sits above the limits set below.</div>"
+        : "") +
+      "</div>";
+  }
+
+  $("reliefLimits").innerHTML = WM.CATEGORIES.map(function (c) {
+    return '<div class="fitem"><label class="fl" for="lim_' + esc(c.key) + '">' + esc(c.label) + "</label>" +
+      '<input type="text" inputmode="decimal" id="lim_' + esc(c.key) + '" value="' +
+      esc(WM.formatAmount(WM.limitFor(state, c.key))) + '">' +
+      '<div class="prev">' + esc(c.note) + "</div></div>";
+  }).join("");
+}
+
+$("saveLimitsBtn").onclick = function () {
+  var limits = {};
+  var bad = null;
+  WM.CATEGORIES.forEach(function (c) {
+    var parsed = WM.parseAmount($("lim_" + c.key).value);
+    if (parsed.error) bad = c.label;
+    limits[c.key] = parsed.value === null ? 0 : parsed.value;
+  });
+  if (bad) { toast(bad + " limit must be a number"); return; }
+  state.settings.reliefLimits = limits;
+  commit();
+  toast("Limits saved");
+};
+
+$("taxYear").onchange = renderRelief;
+
 // ---- goals (S5) ------------------------------------------------------------
 
 var GOAL_WORDS = {
@@ -1705,6 +1768,10 @@ function openHold(id, accountId) {
   $("h_rate").value = r && r.rate ? r.rate : "";
   $("h_fee").value = r && r.feePct ? r.feePct : "";
   $("h_sales").value = r && r.salesPct ? r.salesPct : "";
+  $("h_relief").innerHTML = '<option value="">Not relief-eligible</option>' +
+    WM.CATEGORIES.map(function (c) {
+      return '<option value="' + esc(c.key) + '"' + (r && r.reliefCategory === c.key ? " selected" : "") + ">" + esc(c.label) + "</option>";
+    }).join("");
   $("h_units").checked = r ? !!r.unitBased : false;
   $("holdDelete").style.display = r ? "" : "none";
   showErrors("holdErr", []);
@@ -1720,7 +1787,8 @@ $("holdSave").onclick = function () {
     rate: parseFloat($("h_rate").value) || 0,
     feePct: parseFloat($("h_fee").value) || 0,
     salesPct: parseFloat($("h_sales").value) || 0,
-    unitBased: $("h_units").checked
+    unitBased: $("h_units").checked,
+    reliefCategory: $("h_relief").value || null
   };
   if (showErrors("holdErr", WM.validate("holdings", rec, state))) return;
   WM.upsert(state, "holdings", rec, deviceId);
@@ -1883,6 +1951,7 @@ function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
   renderWorth();
   renderForecast();
+  renderRelief();
   renderGoals();
   renderDecision();
   renderAllocation();

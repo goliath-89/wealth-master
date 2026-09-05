@@ -43,7 +43,7 @@
     accounts: ["id", "institutionId", "name", "class", "currency", "shariah", "liquid",
                "pidmProtected", "archived", "updatedAt", "deviceId", "deleted"],
     holdings: ["id", "accountId", "name", "instrumentType", "rate", "feePct", "salesPct",
-               "unitBased", "updatedAt", "deviceId", "deleted"],
+               "unitBased", "reliefCategory", "updatedAt", "deviceId", "deleted"],
     valuations: ["id", "holdingId", "liabilityId", "assetId", "period", "balance", "units", "unitPrice",
                  "contribution", "withdrawal", "income", "note", "updatedAt", "deviceId", "deleted"],
     assets: ["id", "name", "class", "acquiredOn", "cost", "depreciationModel",

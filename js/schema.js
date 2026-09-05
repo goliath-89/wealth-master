@@ -10,7 +10,7 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
 
-  var SCHEMA_VERSION = 7;
+  var SCHEMA_VERSION = 8;
 
   var ENTITY_LISTS = [
     "institutions", "accounts", "holdings", "valuations",
@@ -89,10 +89,14 @@
       pidmProtected: false
     }, deviceId);
   }
+  // reliefCategory tags a holding whose contributions attract Malaysian income tax
+  // relief, so annual totals can be summed for filing (FR-9.4). Null means not eligible,
+  // which is the safe default — claiming relief that does not apply is the owner's risk,
+  // not something to assume for them.
   function newHolding(deviceId) {
     return stamp({
       id: uid(), accountId: null, name: "", instrumentType: "",
-      rate: 0, feePct: 0, salesPct: 0, unitBased: false
+      rate: 0, feePct: 0, salesPct: 0, unitBased: false, reliefCategory: null
     }, deviceId);
   }
   // A valuation records one subject's position for one period. Exactly one of holdingId,
