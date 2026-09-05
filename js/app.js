@@ -285,6 +285,178 @@ function shortRM(n) {
   return sign + "RM " + Math.round(abs);
 }
 
+// ---- forecast --------------------------------------------------------------
+
+var SCENARIO_COLOURS = { Conservative: "#e0a02a", Base: "#3987e5", Optimistic: "#1fae7f" };
+
+function scenarioColour(name, i) {
+  return SCENARIO_COLOURS[name] || sliceColour(i);
+}
+
+// Defaults live in memory until the owner actually edits one. Writing them to the store
+// on render would stamp three records the owner never created, and the import guard
+// would then rightly report that an incoming file was about to discard them — turning
+// every cross-device import into a false alarm. Rendering must not mutate state.
+var defaultScenarioCache = null;
+
+function activeScenarios() {
+  var stored = WM.live(state.scenarios);
+  if (stored.length) return stored;
+  if (!defaultScenarioCache) defaultScenarioCache = WM.defaultScenarios(deviceId);
+  return defaultScenarioCache;
+}
+
+// Called only from the editor: the moment the owner changes an assumption, the whole set
+// becomes their data and is persisted with the ids already on screen.
+function materialiseScenarios() {
+  if (WM.live(state.scenarios).length) return;
+  state.scenarios = state.scenarios.concat(activeScenarios());
+}
+
+function renderForecast() {
+  var months = parseInt($("horizon").value, 10) || 120;
+  var real = $("realTerms").checked;
+  var projections = WM.projectAll(state, months, null, activeScenarios());
+
+  if (!projections.length || !projections[0].points.length || projections[0].openingNet === 0) {
+    $("forecastKpis").innerHTML = "";
+    $("forecastChart").innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
+      "Record a month first — a projection needs somewhere to start from.</div>";
+    $("forecastLegend").innerHTML = "";
+    $("assumptions").innerHTML = "";
+    return;
+  }
+
+  function shown(p, pt) {
+    return real ? WM.inRealTerms(pt.net, p.assumptions.inflationPct, pt.monthsAhead) : pt.net;
+  }
+
+  var range = WM.rangeAt(projections, months);
+  var years = Math.round(months / 12);
+
+  // The headline is a RANGE, never one figure (R3). A single number here would read as
+  // a prediction no matter how it were labelled.
+  $("forecastKpis").innerHTML =
+    '<div class="kpi"><div class="k">In ' + years + " years, between</div><div class=\"v\">" +
+      esc(fmtRM(projections.map(function (p) { return shown(p, p.points[months]); })
+        .reduce(function (a, b) { return Math.min(a, b); }))) + "</div>" +
+      '<div class="d neu">and ' + esc(fmtRM(projections.map(function (p) { return shown(p, p.points[months]); })
+        .reduce(function (a, b) { return Math.max(a, b); }))) + "</div></div>" +
+    '<div class="kpi"><div class="k">Today</div><div class="v">' +
+      esc(fmtRM(projections[0].openingNet)) + "</div></div>" +
+    '<div class="kpi"><div class="k">Spread</div><div class="v">' + esc(fmtRM(range.spread)) +
+      '</div><div class="d neu">between scenarios</div></div>' +
+    (real ? '<div class="kpi"><div class="k">Shown in</div><div class="v" style="font-size:17px">Today\'s money</div>' +
+      '<div class="d neu">inflation-adjusted</div></div>' : "");
+
+  drawForecastChart(projections, months, real);
+
+  $("assumptions").innerHTML = projections.map(function (p, i) {
+    var sc = WM.byId(state.scenarios, p.scenarioId);
+    var g = p.assumptions.growth;
+    return '<div class="acct"><div class="acct-h">' +
+      '<span class="lgd" style="background:' + scenarioColour(p.scenarioName, i) + '"></span>' +
+      '<span class="acct-n">' + esc(p.scenarioName) + "</span>" +
+      '<div class="spacer"></div>' +
+      '<span class="wv">' + esc(fmtRM(shown(p, p.points[months]))) + "</span>" +
+      '<button class="btn sm" data-edit-scenario="' + esc(p.scenarioId) + '">Edit</button></div>' +
+      '<div class="prev">Cash ' + esc(String(g.cash || 0)) + "% · Investments " + esc(String(g.investment || 0)) +
+      "% · Retirement " + esc(String(g.retirement || 0)) + "% · Inflation " +
+      esc(String(p.assumptions.inflationPct)) + "%" +
+      (p.assumptions.monthlyContribution ? " · Adding " + esc(fmtRM(p.assumptions.monthlyContribution)) + "/month" : "") +
+      "</div></div>";
+  }).join("");
+
+  bindAll("[data-edit-scenario]", "data-edit-scenario", openScenario);
+}
+
+// Historical actuals continuing into the projected range (FR-6.5). Actuals are drawn
+// solid, projections dashed, so the eye can tell recorded fact from arithmetic.
+function drawForecastChart(projections, months, real) {
+  var history = WM.series(state, WM.currentPeriod()).slice(-24);
+  var W = 720, H = 260, ml = 62, mr = 12, mt = 12, mb = 28;
+  var pw = W - ml - mr, ph = H - mt - mb;
+
+  var histLen = history.length;
+  var total = histLen + months;
+  var all = [];
+  history.forEach(function (h) { all.push(h.net); });
+  projections.forEach(function (p) {
+    p.points.forEach(function (pt) {
+      all.push(real ? WM.inRealTerms(pt.net, p.assumptions.inflationPct, pt.monthsAhead) : pt.net);
+    });
+  });
+
+  var lo = Math.min.apply(null, all.concat([0]));
+  var hi = Math.max.apply(null, all.concat([0]));
+  if (hi === lo) hi = lo + 1;
+  var pad = (hi - lo) * 0.08;
+  lo -= pad; hi += pad;
+
+  var X = function (i) { return ml + (total <= 1 ? pw / 2 : (i / (total - 1)) * pw); };
+  var Y = function (v) { return mt + ph - ((v - lo) / (hi - lo)) * ph; };
+
+  var body = "";
+  [lo, (lo + hi) / 2, hi].forEach(function (t) {
+    var y = Y(t);
+    body += '<line class="gridline" x1="' + ml + '" y1="' + y.toFixed(1) + '" x2="' + (W - mr) +
+      '" y2="' + y.toFixed(1) + '"></line>' +
+      '<text class="axis-t" x="' + (ml - 8) + '" y="' + (y + 3.5).toFixed(1) +
+      '" text-anchor="end">' + esc(shortRM(t)) + "</text>";
+  });
+
+  // The boundary between what happened and what is merely assumed.
+  if (histLen > 0) {
+    var bx = X(histLen - 1);
+    body += '<line x1="' + bx.toFixed(1) + '" y1="' + mt + '" x2="' + bx.toFixed(1) + '" y2="' + (mt + ph) +
+      '" stroke="var(--line2)" stroke-width="1"></line>' +
+      '<text class="axis-t" x="' + (bx + 5).toFixed(1) + '" y="' + (mt + 10) + '">projected →</text>';
+  }
+
+  if (histLen > 1) {
+    body += '<path d="M' + history.map(function (h, i) {
+      return X(i).toFixed(1) + "," + Y(h.net).toFixed(1);
+    }).join(" L") + '" fill="none" stroke="var(--tx)" stroke-width="2"></path>';
+  }
+
+  projections.forEach(function (p, idx) {
+    var d = p.points.map(function (pt, i) {
+      var v = real ? WM.inRealTerms(pt.net, p.assumptions.inflationPct, pt.monthsAhead) : pt.net;
+      return X(Math.max(0, histLen - 1) + i).toFixed(1) + "," + Y(v).toFixed(1);
+    });
+    body += '<path d="M' + d.join(" L") + '" fill="none" stroke="' +
+      scenarioColour(p.scenarioName, idx) + '" stroke-width="2" stroke-dasharray="5 4"></path>';
+  });
+
+  $("forecastChart").innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H +
+    '" preserveAspectRatio="xMidYMid meet" role="img" ' +
+    'aria-label="Net worth recorded to date, continuing into three projected scenarios">' +
+    body + "</svg>";
+
+  $("forecastLegend").innerHTML = '<div class="legend">' +
+    '<span class="lg"><span class="lgd" style="background:var(--tx)"></span>Recorded</span>' +
+    projections.map(function (p, i) {
+      return '<span class="lg"><span class="lgd" style="background:' + scenarioColour(p.scenarioName, i) +
+        '"></span>' + esc(p.scenarioName) + " (projected)</span>";
+    }).join("") + "</div>";
+}
+
+function openScenario(id) {
+  editing.scenario = id;
+  var sc = WM.byId(activeScenarios(), id);
+  if (!sc) return;
+  var g = sc.growthAssumptions || {};
+  $("scenarioModalT").textContent = "Assumptions — " + sc.name;
+  $("sc_cash").value = g.cash || 0;
+  $("sc_inv").value = g.investment || 0;
+  $("sc_ret").value = g.retirement || 0;
+  $("sc_prop").value = g.property || 0;
+  $("sc_infl").value = sc.inflationPct || 0;
+  $("sc_contrib").value = WM.formatAmount(sc.monthlyContribution || 0);
+  showErrors("scenarioErr", []);
+  openModal("scenarioModal");
+}
+
 // ---- allocation and PIDM ---------------------------------------------------
 
 // Categorical palette, reused across the app. Chosen to stay distinguishable in both
@@ -1116,7 +1288,7 @@ function bindAll(selector, attr, fn) {
 
 // ---- editors ---------------------------------------------------------------
 
-var editing = { inst: null, acct: null, hold: null, liab: null, asset: null };
+var editing = { inst: null, acct: null, hold: null, liab: null, asset: null, scenario: null };
 
 function openModal(id) { $(id).classList.add("on"); }
 function closeModal(id) { $(id).classList.remove("on"); }
@@ -1338,6 +1510,37 @@ $("liabSave").onclick = function () {
 $("liabDelete").onclick = function () { removeRecord("liabilities", editing.liab, "liabModal", "Liability"); };
 $("addLiabBtn").onclick = function () { openLiab(null); };
 
+$("scenarioSave").onclick = function () {
+  var contrib = WM.parseAmount($("sc_contrib").value);
+  if (contrib.error) { showErrors("scenarioErr", ["Monthly amount must be a number"]); return; }
+
+  // Editing an assumption is the point at which the defaults become the owner's own
+  // data — until now they existed only in memory.
+  materialiseScenarios();
+  var sc = WM.byId(state.scenarios, editing.scenario);
+  if (!sc) return;
+
+  sc.growthAssumptions = {
+    cash: parseFloat($("sc_cash").value) || 0,
+    investment: parseFloat($("sc_inv").value) || 0,
+    retirement: parseFloat($("sc_ret").value) || 0,
+    property: parseFloat($("sc_prop").value) || 0,
+    other: 0,
+    vehicle: (sc.growthAssumptions && sc.growthAssumptions.vehicle) || -10
+  };
+  sc.inflationPct = parseFloat($("sc_infl").value) || 0;
+  sc.monthlyContribution = contrib.value || 0;
+  sc.updatedAt = WM.nowIso();
+  sc.deviceId = deviceId;
+
+  closeModal("scenarioModal");
+  commit();
+  toast(sc.name + " assumptions updated");
+};
+
+$("horizon").onchange = renderForecast;
+$("realTerms").onchange = renderForecast;
+
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
 $("allocDim").onchange = renderAllocation;
@@ -1357,6 +1560,7 @@ Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
 function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
   renderWorth();
+  renderForecast();
   renderAllocation();
   renderPidm();
   renderMonth();

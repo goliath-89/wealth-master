@@ -225,6 +225,7 @@ tbody tr.paid td{color:var(--tx3)}
     <button class="tab" data-v="month">Month</button>
     <button class="tab" data-v="accounts">Accounts</button>
     <button class="tab" data-v="loans">Loans</button>
+    <button class="tab" data-v="forecast">Forecast</button>
     <button class="tab" data-v="data">Data</button>
   </nav>
 </header>
@@ -322,6 +323,40 @@ tbody tr.paid td{color:var(--tx3)}
     <div class="warnbox">
       <b>Check the instalment.</b> These schedules come from the terms you entered, and the arithmetic is verified against worked examples. The quickest confirmation that <em>your</em> figures are right is the monthly instalment: it depends on principal, rate, tenure and basis together, so if the figure above matches your actual monthly debit, all four are almost certainly correct. Enter it under <b>Check against a statement</b> when editing the loan. An itemised interest breakdown, if you ever get one, would confirm the rest basis too. See <code>docs/loan-validation.md</code>.
     </div>
+  </div>
+</div>
+
+<div class="view" id="v-forecast">
+  <div class="sec">
+    <div class="warnbox">
+      <b>Illustrative only.</b> These are arithmetic projections of the assumptions below, not predictions. Markets do not deliver a steady rate, and the range between scenarios is a better guide than any single line.
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-h">
+      <div class="sec-t">Where this lands</div>
+      <div class="spacer"></div>
+      <select id="horizon" style="width:auto;min-width:120px">
+        <option value="60">5 years</option>
+        <option value="120" selected>10 years</option>
+        <option value="240">20 years</option>
+      </select>
+    </div>
+    <div class="kpis" id="forecastKpis"></div>
+  </div>
+  <div class="sec">
+    <div class="card">
+      <div id="forecastChart"></div>
+      <div id="forecastLegend"></div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-h">
+      <div class="sec-t">Assumptions</div>
+      <div class="spacer"></div>
+      <label class="chk" style="min-height:auto"><input type="checkbox" id="realTerms"> Today's money</label>
+    </div>
+    <div id="assumptions"></div>
   </div>
 </div>
 
@@ -471,6 +506,45 @@ tbody tr.paid td{color:var(--tx3)}
       <button class="btn" data-close="acctModal">Cancel</button>
       <div class="spacer"></div>
       <button class="btn dgr sm" id="acctDelete" style="display:none">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="scenarioModal">
+  <div class="modal">
+    <div class="modal-t" id="scenarioModalT">Assumptions</div>
+    <div class="errbox" id="scenarioErr"></div>
+    <p class="note" style="margin-bottom:12px">Annual growth rates you consider plausible for this scenario. These are your assumptions, not forecasts — the projection is only ever the arithmetic of what you enter here.</p>
+    <div class="fgrid">
+      <div class="fitem">
+        <label class="fl" for="sc_cash">Cash % p.a.</label>
+        <input type="number" id="sc_cash" step="0.1">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="sc_inv">Investments % p.a.</label>
+        <input type="number" id="sc_inv" step="0.1">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="sc_ret">Retirement % p.a.</label>
+        <input type="number" id="sc_ret" step="0.1">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="sc_prop">Property % p.a.</label>
+        <input type="number" id="sc_prop" step="0.1">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="sc_infl">Inflation % p.a.</label>
+        <input type="number" id="sc_infl" step="0.1">
+      </div>
+      <div class="fitem">
+        <label class="fl" for="sc_contrib">Adding monthly</label>
+        <input type="text" inputmode="decimal" id="sc_contrib" placeholder="—">
+      </div>
+    </div>
+    <hr class="hr">
+    <div class="row">
+      <button class="btn pri" id="scenarioSave">Save</button>
+      <button class="btn" data-close="scenarioModal">Cancel</button>
     </div>
   </div>
 </div>
@@ -664,6 +738,7 @@ tbody tr.paid td{color:var(--tx3)}
 <script src="js/networth.js"></script>
 <script src="js/loans.js"></script>
 <script src="js/analytics.js"></script>
+<script src="js/forecast.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
