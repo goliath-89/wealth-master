@@ -152,10 +152,70 @@
     }).sort(function (a, b) { return b.protectedTotal - a.protectedTotal; });
   }
 
+  // Emergency fund runway: how many months the liquid money covers (FR-4.5).
+  //
+  // Liquid holdings only. A house is not an emergency fund, and neither is EPF — the
+  // point of the figure is what you can reach the week you need it.
+  //
+  // Returns null when monthly expenses have not been recorded, rather than a runway
+  // computed against a guess.
+  function emergencyRunway(state, period) {
+    var expenses = Number(state.settings && state.settings.monthlyExpenses) || 0;
+    var liquid = nw.positionAt(state, period).liquid;
+    if (!expenses) {
+      return { liquid: liquid, monthlyExpenses: null, months: null, reason: "no-expenses" };
+    }
+    return {
+      liquid: liquid,
+      monthlyExpenses: expenses,
+      months: Math.round((liquid / expenses) * 10) / 10,
+      reason: null
+    };
+  }
+
+  // Savings rate: what share of income is actually being put away (FR-4.6).
+  //
+  // Counts recorded contributions across every holding over the window. Months with no
+  // contribution recorded are counted as months at zero here — unlike realised yield,
+  // where a blank means unknown. The difference is deliberate: a month you did not save
+  // in is still a month, and excluding it would flatter the rate.
+  function savingsRate(state, period, months) {
+    var window = months || 12;
+    var income = Number(state.settings && state.settings.monthlyIncome) || 0;
+
+    var earliest = period;
+    for (var k = 0; k < window - 1; k++) earliest = val.prevPeriod(earliest);
+
+    var contributed = 0;
+    (state.valuations || []).forEach(function (v) {
+      if (v.deleted || !v.holdingId) return;
+      if (v.period < earliest || v.period > period) return;
+      if (v.contribution === null || v.contribution === undefined) return;
+      contributed += v.contribution;
+    });
+    contributed = Math.round(contributed * 100) / 100;
+
+    if (!income) {
+      return { contributed: contributed, months: window, income: null, pct: null, reason: "no-income" };
+    }
+    var totalIncome = income * window;
+    return {
+      contributed: contributed,
+      months: window,
+      income: income,
+      totalIncome: totalIncome,
+      monthlyAverage: Math.round((contributed / window) * 100) / 100,
+      pct: Math.round((contributed / totalIncome) * 1000) / 10,
+      reason: null
+    };
+  }
+
   return {
     realisedYield: realisedYield,
     netOfFees: netOfFees,
     feeDrag: feeDrag,
+    emergencyRunway: emergencyRunway,
+    savingsRate: savingsRate,
     allocation: allocation,
     pidmExposure: pidmExposure,
     DIMENSIONS: DIMENSIONS,

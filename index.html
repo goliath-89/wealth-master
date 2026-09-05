@@ -243,6 +243,9 @@ tbody tr.paid td{color:var(--tx3)}
     <div class="sec-h"><div class="sec-t">Trend</div></div>
     <div class="card"><div id="worthChart"></div></div>
   </div>
+  <div class="sec">
+    <div class="kpis" id="resilience"></div>
+  </div>
   <div class="sec" id="pidmWrap" style="display:none">
     <div class="warnbox" id="pidmNote"></div>
   </div>
@@ -394,6 +397,27 @@ tbody tr.paid td{color:var(--tx3)}
   <div class="sec">
     <div class="sec-h"><div class="sec-t">Store</div></div>
     <div class="kpis" id="kpis"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><div class="sec-t">Your monthly figures</div></div>
+    <div class="card">
+      <p class="note" style="margin-bottom:14px">Two numbers that unlock the emergency fund runway and savings rate. Rough is fine — they are only used as denominators, and nothing else depends on them.</p>
+      <div class="fgrid">
+        <div class="fitem">
+          <label class="fl" for="set_income">Take-home each month</label>
+          <input type="text" inputmode="decimal" id="set_income" placeholder="—">
+        </div>
+        <div class="fitem">
+          <label class="fl" for="set_expenses">Spending each month</label>
+          <input type="text" inputmode="decimal" id="set_expenses" placeholder="—">
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn pri" id="saveSettingsBtn">Save</button>
+        <span class="note" id="settingsNote"></span>
+      </div>
+    </div>
   </div>
 
   <div class="sec">

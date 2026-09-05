@@ -731,6 +731,64 @@ function renderAllocation() {
   }).join("") + "</div>";
 }
 
+// Runway and savings rate share a home on the net worth screen: both answer "how solid
+// is this", which is a different question from "how much is it".
+function renderResilience() {
+  var period = WM.currentPeriod();
+  var run = WM.emergencyRunway(state, period);
+  var save = WM.savingsRate(state, period, 12);
+
+  var runHtml;
+  if (run.months === null) {
+    runHtml = '<div class="kpi"><div class="k">Emergency runway</div><div class="v" style="font-size:16px">—</div>' +
+      '<div class="d neu">Add your monthly spending on the Data tab</div></div>';
+  } else {
+    // Three months is the common floor; six is the usual comfortable target.
+    var tone = run.months >= 6 ? "up" : run.months >= 3 ? "neu" : "dn";
+    runHtml = '<div class="kpi"><div class="k">Emergency runway</div><div class="v">' +
+      esc(run.months) + (run.months === 1 ? " month" : " months") + "</div>" +
+      '<div class="d ' + tone + '">' + esc(fmtRM(run.liquid)) + " liquid ÷ " +
+      esc(fmtRM(run.monthlyExpenses)) + "/month</div></div>";
+  }
+
+  var saveHtml;
+  if (save.pct === null) {
+    saveHtml = '<div class="kpi"><div class="k">Savings rate</div><div class="v" style="font-size:16px">—</div>' +
+      '<div class="d neu">Add your take-home on the Data tab</div></div>';
+  } else {
+    saveHtml = '<div class="kpi"><div class="k">Savings rate</div><div class="v">' +
+      esc(save.pct) + "%</div>" +
+      '<div class="d neu">' + esc(fmtRM(save.monthlyAverage)) + "/month over 12 months</div></div>";
+  }
+
+  $("resilience").innerHTML = runHtml + saveHtml;
+}
+
+function renderSettingsFields() {
+  // Only overwrite while the owner is not mid-edit, so a re-render cannot wipe typing.
+  if (document.activeElement !== $("set_income")) {
+    $("set_income").value = WM.formatAmount(state.settings.monthlyIncome);
+  }
+  if (document.activeElement !== $("set_expenses")) {
+    $("set_expenses").value = WM.formatAmount(state.settings.monthlyExpenses);
+  }
+  var have = state.settings.monthlyIncome || state.settings.monthlyExpenses;
+  $("settingsNote").textContent = have ? "" : "Neither is set yet.";
+}
+
+$("saveSettingsBtn").onclick = function () {
+  var income = WM.parseAmount($("set_income").value);
+  var expenses = WM.parseAmount($("set_expenses").value);
+  if (income.error || expenses.error) {
+    toast("Those must be numbers");
+    return;
+  }
+  state.settings.monthlyIncome = income.value;
+  state.settings.monthlyExpenses = expenses.value;
+  commit();
+  toast("Saved");
+};
+
 function renderPidm() {
   var over = WM.pidmExposure(state, WM.currentPeriod()).filter(function (e) { return e.overLimit; });
   if (!over.length) { $("pidmWrap").style.display = "none"; return; }
@@ -1765,6 +1823,8 @@ function render() {
   renderGoals();
   renderDecision();
   renderAllocation();
+  renderResilience();
+  renderSettingsFields();
   renderPidm();
   renderMonth();
   renderTree();
