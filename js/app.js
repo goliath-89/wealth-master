@@ -1041,7 +1041,47 @@ function renderResilience() {
       '<div class="d neu">' + esc(fmtRM(save.monthlyAverage)) + "/month over 12 months</div></div>";
   }
 
-  $("resilience").innerHTML = runHtml + saveHtml;
+  // Fees as a third tile on the same row: runway and savings rate say how much is
+  // coming in and how long it lasts, fee drag says what is quietly going out (FR-4.7).
+  var drag = WM.feeDrag(state, period);
+  var feeHtml;
+  if (!drag.lines.length) {
+    feeHtml = '<div class="kpi"><div class="k">Fees</div><div class="v" style="font-size:16px">—</div>' +
+      '<div class="d neu">No holding has a fee rate set</div></div>';
+  } else {
+    // The weighted average is the honest headline: a big ringgit figure on a big
+    // portfolio is not the same news as the same figure on a small one.
+    var charged = drag.lines.reduce(function (n, l) { return n + l.balance; }, 0);
+    var avgPct = charged > 0 ? Math.round(drag.totalAnnualFee / charged * 10000) / 100 : 0;
+    feeHtml = '<div class="kpi"><div class="k">Fees</div><div class="v">' +
+      esc(fmtRM(drag.totalAnnualFee)) + "</div>" +
+      '<div class="d dn">' + esc(avgPct.toFixed(2)) + "% a year on " + esc(fmtRM(charged)) + "</div></div>";
+  }
+
+  $("resilience").innerHTML = runHtml + saveHtml + feeHtml;
+}
+
+// Which holdings the fees are actually coming from, dearest first — a total with no
+// breakdown names no lever. Hidden entirely when no holding charges a fee, rather than
+// showing an empty card on a portfolio that has none.
+function renderFees() {
+  var drag = WM.feeDrag(state, WM.currentPeriod());
+  if (!drag.lines.length) {
+    $("feesWrap").style.display = "none";
+    $("feesList").innerHTML = "";
+    return;
+  }
+  $("feesWrap").style.display = "";
+
+  var lines = drag.lines.slice().sort(function (a, b) { return b.annualFee - a.annualFee; });
+  $("feesList").innerHTML = lines.map(function (l) {
+    return '<div class="wline"><div class="wn">' + esc(l.name) +
+      '<div class="ws">' + esc(String(l.feePct)) + "% a year on " + esc(fmtRM(l.balance)) +
+      "</div></div>" +
+      '<div class="wv">' + esc(fmtRM(Math.round(l.annualFee * 100) / 100)) + "</div></div>";
+  }).join("") +
+    '<div class="subtot"><span>A year in fees</span><span class="wv">' +
+    esc(fmtRM(drag.totalAnnualFee)) + "</span></div>";
 }
 
 function renderSettingsFields() {
@@ -2202,6 +2242,7 @@ function render() {
   renderDecision();
   renderAllocation();
   renderResilience();
+  renderFees();
   renderSettingsFields();
   renderPidm();
   renderMonth();
