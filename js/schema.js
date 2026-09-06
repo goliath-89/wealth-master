@@ -10,7 +10,7 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
 
-  var SCHEMA_VERSION = 9;
+  var SCHEMA_VERSION = 10;
 
   var ENTITY_LISTS = [
     "institutions", "accounts", "holdings", "valuations",
@@ -93,10 +93,17 @@
   // relief, so annual totals can be summed for filing (FR-9.4). Null means not eligible,
   // which is the safe default — claiming relief that does not apply is the owner's risk,
   // not something to assume for them.
+  //
+  // epfAccount names which of EPF's three accounts this holding is, when it is one
+  // (FR-9.1): "persaraan", "sejahtera" or "fleksibel". Null for everything else. The
+  // three are separate holdings rather than one balance with a derived split, because a
+  // statement reports three real figures and deriving them would replace facts with an
+  // assumption about a policy that has already changed once.
   function newHolding(deviceId) {
     return stamp({
       id: uid(), accountId: null, name: "", instrumentType: "",
-      rate: 0, feePct: 0, salesPct: 0, unitBased: false, fixedPrice: null, reliefCategory: null
+      rate: 0, feePct: 0, salesPct: 0, unitBased: false, fixedPrice: null,
+      reliefCategory: null, epfAccount: null
     }, deviceId);
   }
   // A valuation records one subject's position for one period. Exactly one of holdingId,
