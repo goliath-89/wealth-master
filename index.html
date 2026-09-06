@@ -197,6 +197,18 @@ tbody tr.paid td{color:var(--tx3)}
 .legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px}
 .lg{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2)}
 .lgd{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+/* A legend entry that toggles its series is a control, so it is a real button and
+   carries pressed state. Muted rather than hidden when off — the reader needs to see
+   what is available to bring back. */
+.lgt{
+  display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2);
+  background:none;border:.5px solid transparent;border-radius:7px;
+  padding:4px 8px;min-height:44px;cursor:pointer;text-align:left;
+}
+.lgt:hover{border-color:var(--line2)}
+.lgt:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.lgt[aria-pressed="false"]{opacity:.42}
+.lgt[aria-pressed="false"] .lgd{background:var(--tx3)!important}
 .lgv{color:var(--tx);font-variant-numeric:tabular-nums}
 .yield{font-size:11.5px;font-variant-numeric:tabular-nums}
 .yield.up{color:var(--good)}
@@ -250,6 +262,21 @@ tbody tr.paid td{color:var(--tx3)}
   <div class="sec" id="pidmWrap" style="display:none">
     <div class="warnbox" id="pidmNote"></div>
   </div>
+  <div class="sec" id="feesWrap" style="display:none">
+    <div class="sec-h"><div class="sec-t">What the fees cost</div></div>
+    <div class="card">
+      <p class="note" style="margin-bottom:12px">A yearly run rate at today's balances, not what has already been charged &mdash; the app never sees a fee leave your account. Only holdings with a fee rate set appear here.</p>
+      <div id="feesList"></div>
+    </div>
+  </div>
+  <div class="sec" id="incomeWrap" style="display:none">
+    <div class="sec-h"><div class="sec-t">Income by month</div></div>
+    <div class="card">
+      <p class="note" style="margin-bottom:12px">What each holding actually paid, month by month. Income is not carried forward like a balance is &mdash; a month with no bar recorded no income.</p>
+      <div id="incomeChart"></div>
+      <div id="incomeLegend"></div>
+    </div>
+  </div>
   <div class="sec">
     <div class="sec-h">
       <div class="sec-t">Allocation</div>
@@ -299,6 +326,22 @@ tbody tr.paid td{color:var(--tx3)}
   </div>
   <div class="sec">
     <label class="chk"><input type="checkbox" id="showArchived"> Show archived accounts</label>
+  </div>
+
+  <div class="sec" id="seriesWrap" style="display:none">
+    <div class="sec-h">
+      <div class="sec-t">Over time</div>
+      <div class="spacer"></div>
+      <select id="seriesMetric" style="width:auto;min-width:150px">
+        <option value="balance">Balance</option>
+        <option value="yield">Realised yield</option>
+      </select>
+    </div>
+    <div class="card">
+      <p class="note" id="seriesNote" style="margin-bottom:12px"></p>
+      <div id="seriesChart"></div>
+      <div id="seriesLegend"></div>
+    </div>
   </div>
 
   <div class="sec" id="epfSec">
@@ -922,6 +965,7 @@ tbody tr.paid td{color:var(--tx3)}
 <script src="js/relief.js"></script>
 <script src="js/units.js"></script>
 <script src="js/epf.js"></script>
+<script src="js/series.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

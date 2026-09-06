@@ -935,6 +935,235 @@ function renderDecision() {
     "</b> — and unlike the loan's interest, a return is an assumption rather than a certainty.</div>";
 }
 
+// ---- series over time (FR-6.3, FR-6.4, FR-6.8) -----------------------------
+//
+// One multi-line chart drives both per-holding views: balance over time and rolling
+// realised yield are the same picture with a different y-value, and both need the same
+// series toggling, so they share a renderer rather than duplicating one.
+//
+// Which series are hidden is VIEW state, not data. It lives here and is never written to
+// the store — toggling a line off is not a fact about the portfolio, and persisting it
+// would put a rendering decision into every export and every cross-device import.
+var hiddenSeries = {};
+var seriesMetric = "balance";
+
+function seriesLabel(unit, v) {
+  return unit === "percent" ? v.toFixed(2) + "%" : shortRM(v);
+}
+
+// Draws any number of lines on a shared scale. Null values break the line rather than
+// bridging it: a gap means the holding had no balance then, and joining across it would
+// draw a value that was never recorded.
+function drawSeriesChart(elId, data, hidden, ariaLabel) {
+  var el = $(elId);
+  var visible = data.series.filter(function (s) { return !hidden[s.id]; });
+
+  if (!data.series.length) {
+    el.innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
+      "Nothing recorded to chart yet.</div>";
+    return;
+  }
+  if (!visible.length) {
+    el.innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
+      "Every series is switched off. Tap one below to bring it back.</div>";
+    return;
+  }
+  if (data.periods.length < 2) {
+    el.innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
+      "A line needs at least two months.</div>";
+    return;
+  }
+
+  var W = 720, H = 300, ml = data.unit === "percent" ? 46 : 62, mr = 12, mt = 12, mb = 28;
+  var pw = W - ml - mr, ph = H - mt - mb;
+
+  // The scale follows what is actually shown: hiding the big series must let the small
+  // ones open out, not leave them flat against the axis.
+  var vals = [];
+  visible.forEach(function (s) {
+    s.points.forEach(function (pt) { if (pt.value !== null) vals.push(pt.value); });
+  });
+  // Anchored at zero, so the height of a line is proportional to the money it stands
+  // for. Padding is added below only when something actually goes negative — otherwise
+  // the axis grows a "−RM 12k" label on a chart where nothing is below zero.
+  var trueLo = Math.min.apply(null, vals);
+  var lo = Math.min(trueLo, 0);
+  var hi = Math.max.apply(null, vals.concat([0]));
+  if (hi === lo) hi = lo + 1;
+  var pad = (hi - lo) * 0.12;
+  hi += pad;
+  if (trueLo < 0) lo -= pad;
+
+  var X = function (i) { return ml + (i / (data.periods.length - 1)) * pw; };
+  var Y = function (v) { return mt + ph - ((v - lo) / (hi - lo)) * ph; };
+
+  var body = "";
+  [lo, (lo + hi) / 2, hi].forEach(function (t) {
+    var y = Y(t);
+    body += '<line class="gridline" x1="' + ml + '" y1="' + y.toFixed(1) + '" x2="' + (W - mr) +
+      '" y2="' + y.toFixed(1) + '"></line>';
+    body += '<text class="axis-t" x="' + (ml - 8) + '" y="' + (y + 3.5).toFixed(1) +
+      '" text-anchor="end">' + esc(seriesLabel(data.unit, t)) + "</text>";
+  });
+  if (lo < 0 && hi > 0) {
+    body += '<line x1="' + ml + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - mr) + '" y2="' +
+      Y(0).toFixed(1) + '" stroke="currentColor" stroke-width="1" opacity="0.35"></line>';
+  }
+
+  visible.forEach(function (sr) {
+    var colour = sliceColour(data.series.indexOf(sr));
+    var run = [];
+    var segments = [];
+    sr.points.forEach(function (pt, i) {
+      if (pt.value === null) {
+        if (run.length) segments.push(run);
+        run = [];
+        return;
+      }
+      run.push(X(i).toFixed(1) + "," + Y(pt.value).toFixed(1));
+    });
+    if (run.length) segments.push(run);
+
+    segments.forEach(function (seg) {
+      if (seg.length === 1) {
+        // A lone recorded month is a dot, not a line — drawing nothing would lose it.
+        var xy = seg[0].split(",");
+        body += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="2.6" fill="' + colour + '"></circle>';
+        return;
+      }
+      body += '<path d="M' + seg.join(" L") + '" fill="none" stroke="' + colour +
+        '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>';
+    });
+
+    // Carried-forward months are drawn hollow, the same mark the net worth trend uses,
+    // so an estimate never looks like an entry.
+    sr.points.forEach(function (pt, i) {
+      if (pt.value === null || !pt.stale) return;
+      body += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(pt.value).toFixed(1) +
+        '" r="3.2" fill="var(--bg)" stroke="var(--warn)" stroke-width="2"></circle>';
+    });
+  });
+
+  var step = Math.max(1, Math.ceil(data.periods.length / 6));
+  data.periods.forEach(function (p, i) {
+    if (i % step !== 0 && i !== data.periods.length - 1) return;
+    body += '<text class="axis-t" x="' + X(i).toFixed(1) + '" y="' + (H - 8) +
+      '" text-anchor="middle">' + esc(monthLabel(p)) + "</text>";
+  });
+
+  el.innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
+    'role="img" aria-label="' + esc(ariaLabel) + '">' + body + "</svg>";
+}
+
+// The legend doubles as the series switches (FR-6.3). Each entry is a real button with
+// pressed state, so it works from a keyboard and reads correctly to a screen reader.
+function drawSeriesLegend(elId, data, hidden) {
+  $(elId).innerHTML = '<div class="legend">' + data.series.map(function (sr, i) {
+    var on = !hidden[sr.id];
+    return '<button type="button" class="lgt" aria-pressed="' + (on ? "true" : "false") +
+      '" data-series="' + esc(sr.id) + '">' +
+      '<span class="lgd" style="background:' + sliceColour(i) + '"></span>' +
+      esc(sr.name) +
+      (sr.latest !== null ? ' <span class="lgv">' + esc(seriesLabel(data.unit, sr.latest)) + "</span>" : "") +
+      "</button>";
+  }).join("") + "</div>";
+}
+
+function renderSeries() {
+  var metric = $("seriesMetric").value || seriesMetric;
+  seriesMetric = metric;
+  var data = metric === "yield"
+    ? WM.yieldSeries(state, WM.currentPeriod())
+    : WM.balanceSeries(state, WM.currentPeriod());
+
+  if (!data.series.length) {
+    $("seriesWrap").style.display = "none";
+    return;
+  }
+  $("seriesWrap").style.display = "";
+
+  $("seriesNote").textContent = metric === "yield"
+    ? "Income actually received over the trailing " + data.windowMonths +
+      " months, annualised. A holding appears only once it has at least " +
+      WM.MIN_YIELD_MONTHS + " months of recorded income — a rate from fewer is noise."
+    : "Closing balance per holding. A hollow marker is a month carried forward from an " +
+      "earlier entry, and a line starts only when that holding was first recorded.";
+
+  drawSeriesChart("seriesChart", data, hiddenSeries,
+    metric === "yield" ? "Rolling realised yield per holding" : "Balance over time per holding");
+  drawSeriesLegend("seriesLegend", data, hiddenSeries);
+}
+
+$("seriesMetric").onchange = renderSeries;
+
+// Delegated so the handler survives the legend being rewritten on every render.
+$("seriesLegend").onclick = function (e) {
+  var btn = e.target.closest ? e.target.closest("[data-series]") : null;
+  if (!btn) return;
+  var id = btn.getAttribute("data-series");
+  if (hiddenSeries[id]) delete hiddenSeries[id]; else hiddenSeries[id] = true;
+  renderSeries();
+};
+
+// Income stacked by the holding that paid it (FR-6.4). Bars, not a line: income is a
+// flow recorded per month, and a line between two months would imply a value in between.
+function renderIncome() {
+  var data = WM.incomeByMonth(state, WM.currentPeriod());
+  if (!data.sources.length || data.grandTotal <= 0) {
+    $("incomeWrap").style.display = "none";
+    return;
+  }
+  $("incomeWrap").style.display = "";
+
+  var W = 720, H = 240, ml = 62, mr = 12, mt = 12, mb = 28;
+  var pw = W - ml - mr, ph = H - mt - mb;
+  var hi = data.max > 0 ? data.max * 1.12 : 1;
+  var Y = function (v) { return mt + ph - (v / hi) * ph; };
+
+  var n = data.rows.length;
+  var slot = pw / n;
+  var bw = Math.max(2, Math.min(38, slot * 0.68));
+
+  var body = "";
+  [0, hi / 2, hi].forEach(function (t) {
+    var y = Y(t);
+    body += '<line class="gridline" x1="' + ml + '" y1="' + y.toFixed(1) + '" x2="' + (W - mr) +
+      '" y2="' + y.toFixed(1) + '"></line>';
+    body += '<text class="axis-t" x="' + (ml - 8) + '" y="' + (y + 3.5).toFixed(1) +
+      '" text-anchor="end">' + esc(shortRM(t)) + "</text>";
+  });
+
+  data.rows.forEach(function (row, i) {
+    var cx = ml + slot * i + slot / 2;
+    var base = Y(0);
+    row.parts.forEach(function (part, j) {
+      if (part.value <= 0) return;
+      var h = (part.value / hi) * ph;
+      var top = base - h;
+      body += '<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + top.toFixed(1) +
+        '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) +
+        '" fill="' + sliceColour(j) + '"></rect>';
+      base = top;
+    });
+  });
+
+  var step = Math.max(1, Math.ceil(n / 6));
+  data.rows.forEach(function (row, i) {
+    if (i % step !== 0 && i !== n - 1) return;
+    body += '<text class="axis-t" x="' + (ml + slot * i + slot / 2).toFixed(1) + '" y="' + (H - 8) +
+      '" text-anchor="middle">' + esc(monthLabel(row.period)) + "</text>";
+  });
+
+  $("incomeChart").innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H +
+    '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Monthly income by source">' +
+    body + "</svg>";
+
+  $("incomeLegend").innerHTML = '<div class="legend">' + data.sources.map(function (src, i) {
+    return '<span class="lg"><span class="lgd" style="background:' + sliceColour(i) + '"></span>' +
+      esc(src.name) + ' <span class="lgv">' + esc(fmtRM(src.total)) + "</span></span>";
+  }).join("") + "</div>";
+}
+
 // ---- allocation and PIDM ---------------------------------------------------
 
 // Categorical palette, reused across the app. Chosen to stay distinguishable in both
@@ -1041,7 +1270,47 @@ function renderResilience() {
       '<div class="d neu">' + esc(fmtRM(save.monthlyAverage)) + "/month over 12 months</div></div>";
   }
 
-  $("resilience").innerHTML = runHtml + saveHtml;
+  // Fees as a third tile on the same row: runway and savings rate say how much is
+  // coming in and how long it lasts, fee drag says what is quietly going out (FR-4.7).
+  var drag = WM.feeDrag(state, period);
+  var feeHtml;
+  if (!drag.lines.length) {
+    feeHtml = '<div class="kpi"><div class="k">Fees</div><div class="v" style="font-size:16px">—</div>' +
+      '<div class="d neu">No holding has a fee rate set</div></div>';
+  } else {
+    // The weighted average is the honest headline: a big ringgit figure on a big
+    // portfolio is not the same news as the same figure on a small one.
+    var charged = drag.lines.reduce(function (n, l) { return n + l.balance; }, 0);
+    var avgPct = charged > 0 ? Math.round(drag.totalAnnualFee / charged * 10000) / 100 : 0;
+    feeHtml = '<div class="kpi"><div class="k">Fees</div><div class="v">' +
+      esc(fmtRM(drag.totalAnnualFee)) + "</div>" +
+      '<div class="d dn">' + esc(avgPct.toFixed(2)) + "% a year on " + esc(fmtRM(charged)) + "</div></div>";
+  }
+
+  $("resilience").innerHTML = runHtml + saveHtml + feeHtml;
+}
+
+// Which holdings the fees are actually coming from, dearest first — a total with no
+// breakdown names no lever. Hidden entirely when no holding charges a fee, rather than
+// showing an empty card on a portfolio that has none.
+function renderFees() {
+  var drag = WM.feeDrag(state, WM.currentPeriod());
+  if (!drag.lines.length) {
+    $("feesWrap").style.display = "none";
+    $("feesList").innerHTML = "";
+    return;
+  }
+  $("feesWrap").style.display = "";
+
+  var lines = drag.lines.slice().sort(function (a, b) { return b.annualFee - a.annualFee; });
+  $("feesList").innerHTML = lines.map(function (l) {
+    return '<div class="wline"><div class="wn">' + esc(l.name) +
+      '<div class="ws">' + esc(String(l.feePct)) + "% a year on " + esc(fmtRM(l.balance)) +
+      "</div></div>" +
+      '<div class="wv">' + esc(fmtRM(Math.round(l.annualFee * 100) / 100)) + "</div></div>";
+  }).join("") +
+    '<div class="subtot"><span>A year in fees</span><span class="wv">' +
+    esc(fmtRM(drag.totalAnnualFee)) + "</span></div>";
 }
 
 function renderSettingsFields() {
@@ -2202,6 +2471,9 @@ function render() {
   renderDecision();
   renderAllocation();
   renderResilience();
+  renderFees();
+  renderIncome();
+  renderSeries();
   renderSettingsFields();
   renderPidm();
   renderMonth();
