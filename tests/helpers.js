@@ -55,6 +55,7 @@ function loadLib(window) {
   delete require.cache[require.resolve("../js/relief.js")];
   delete require.cache[require.resolve("../js/units.js")];
   delete require.cache[require.resolve("../js/epf.js")];
+  delete require.cache[require.resolve("../js/series.js")];
   var schema = require("../js/schema.js");
   var store = require("../js/store.js");
   var migrateFundDesk = require("../js/migrate-funddesk.js");
@@ -72,9 +73,10 @@ function loadLib(window) {
   var relief = require("../js/relief.js");
   var units = require("../js/units.js");
   var epf = require("../js/epf.js");
+  var series = require("../js/series.js");
   return {
     schema: schema, store: store, migrateFundDesk: migrateFundDesk,
-    importGuard: importGuard, csv: csv, entities: entities, valuations: valuations, networth: networth, loans: loans, analytics: analytics, forecast: forecast, decisions: decisions, goals: goals, strategy: strategy, relief: relief, units: units, epf: epf
+    importGuard: importGuard, csv: csv, entities: entities, valuations: valuations, networth: networth, loans: loans, analytics: analytics, forecast: forecast, decisions: decisions, goals: goals, strategy: strategy, relief: relief, units: units, epf: epf, series: series
   };
 }
 
@@ -103,7 +105,7 @@ function loadApp(seedState) {
   };
 
   ["js/schema.js", "js/store.js", "js/migrate-funddesk.js", "js/import-guard.js",
-   "js/csv.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/strategy.js", "js/relief.js", "js/units.js", "js/epf.js", "js/app.js"].forEach(function (rel) {
+   "js/csv.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/strategy.js", "js/relief.js", "js/units.js", "js/epf.js", "js/series.js", "js/app.js"].forEach(function (rel) {
     var code = fs.readFileSync(path.join(ROOT, rel), "utf8");
     window.eval(code);
   });
