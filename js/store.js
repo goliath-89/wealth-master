@@ -103,6 +103,16 @@
         if (h.reliefCategory === undefined) h.reliefCategory = null;
       });
       return o;
+    },
+
+    // v8 -> v9: a holding can pin its unit price, which is how ASNB fixed-price funds
+    // work — a unit is always RM 1.00, so units and ringgit are the same number and all
+    // the return comes as extra units rather than a rising price (FR-9.2).
+    8: function (o) {
+      (o.holdings || []).forEach(function (h) {
+        if (h.fixedPrice === undefined) h.fixedPrice = null;
+      });
+      return o;
     }
   };
 

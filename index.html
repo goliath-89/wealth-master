@@ -839,7 +839,12 @@ tbody tr.paid td{color:var(--tx3)}
         <select id="h_relief"></select>
       </div>
       <div class="fitem"><label class="chk"><input type="checkbox" id="h_units"> Unit-based</label></div>
+      <div class="fitem">
+        <label class="fl" for="h_fixed">Fixed unit price</label>
+        <input type="text" inputmode="decimal" id="h_fixed" placeholder="ASNB: 1.00">
+      </div>
     </div>
+    <p class="note" style="margin-top:10px">Set a fixed price for ASNB-style funds where a unit is always RM 1.00. Their return arrives as extra units, so there is never an unrealised gain — the dividend is the return.</p>
     <p class="note" style="margin-top:10px">Tagging a holding sums its yearly contributions on the Tax tab. It does not decide whether the relief applies to you — check that against LHDN for the year you are filing.</p>
     <hr class="hr">
     <div class="row">
@@ -869,6 +874,7 @@ tbody tr.paid td{color:var(--tx3)}
 <script src="js/goals.js"></script>
 <script src="js/strategy.js"></script>
 <script src="js/relief.js"></script>
+<script src="js/units.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

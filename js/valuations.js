@@ -17,6 +17,11 @@
 
   var AMOUNT_FIELDS = ["balance", "contribution", "withdrawal", "income"];
 
+  // Carried through but not offered as month-entry fields: a unit trust's units and
+  // price come from a statement or an import, not from the monthly grid. They were
+  // previously dropped on save, which made unit-based holdings unrecordable.
+  var UNIT_FIELDS = ["units", "unitPrice"];
+
   // "" -> null (not recorded). "0" -> 0. Currency decoration and thousands separators are
   // stripped wherever they appear, so both "RM -150" and "-RM 150" read back correctly —
   // this has to accept anything formatAmount can produce, or a field would stop being
@@ -108,7 +113,7 @@
   }
 
   function isEmptyEntry(entry) {
-    var noAmounts = AMOUNT_FIELDS.every(function (f) {
+    var noAmounts = AMOUNT_FIELDS.concat(UNIT_FIELDS).every(function (f) {
       return entry[f] === null || entry[f] === undefined;
     });
     return noAmounts && !(entry.note && String(entry.note).trim());
@@ -141,6 +146,11 @@
     }
     AMOUNT_FIELDS.forEach(function (f) {
       target[f] = entry[f] === undefined ? null : entry[f];
+    });
+    // Only overwrite units and price when the caller supplied them, so saving a month
+    // through the entry grid does not wipe unit data that came from a statement.
+    UNIT_FIELDS.forEach(function (f) {
+      if (entry[f] !== undefined) target[f] = entry[f];
     });
     target.note = entry.note || "";
     target.deleted = false;
@@ -190,6 +200,7 @@
 
   return {
     AMOUNT_FIELDS: AMOUNT_FIELDS,
+    UNIT_FIELDS: UNIT_FIELDS,
     parseAmount: parseAmount,
     formatAmount: formatAmount,
     rawAmount: rawAmount,

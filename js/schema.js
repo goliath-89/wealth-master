@@ -10,7 +10,7 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
 
-  var SCHEMA_VERSION = 8;
+  var SCHEMA_VERSION = 9;
 
   var ENTITY_LISTS = [
     "institutions", "accounts", "holdings", "valuations",
@@ -96,7 +96,7 @@
   function newHolding(deviceId) {
     return stamp({
       id: uid(), accountId: null, name: "", instrumentType: "",
-      rate: 0, feePct: 0, salesPct: 0, unitBased: false, reliefCategory: null
+      rate: 0, feePct: 0, salesPct: 0, unitBased: false, fixedPrice: null, reliefCategory: null
     }, deviceId);
   }
   // A valuation records one subject's position for one period. Exactly one of holdingId,

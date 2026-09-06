@@ -1621,10 +1621,29 @@ function renderTree() {
             (n.feePct ? " · " + esc(n.netPct.toFixed(2)) + "% net" : "") +
             " · " + n.months + (n.months === 1 ? " month" : " months") + "</span>";
         }
+        // Units and cost basis for a unit-based holding. A fixed-price fund reports no
+        // unrealised gain by design — its return is the dividend, already counted.
+        var unitHtml = "";
+        if (h.unitBased) {
+          var pos = WM.position(state, h, WM.currentPeriod());
+          if (pos && pos.units) {
+            unitHtml = '<span class="yield neu">' +
+              esc(pos.units.toLocaleString("en-MY")) + " units @ " +
+              esc(WM.formatAmount(pos.unitPrice)) +
+              (pos.fixedPrice ? " fixed" : "") + "</span>";
+            if (!pos.fixedPrice && pos.unrealisedPct !== null) {
+              var up = pos.unrealisedGain >= 0;
+              unitHtml += '<span class="yield ' + (up ? "up" : "dn") + '">' +
+                (up ? "▲ " : "▼ ") + esc(fmtRM(Math.abs(pos.unrealisedGain))) +
+                " (" + esc(pos.unrealisedPct.toFixed(1)) + "%) unrealised</span>";
+            }
+          }
+        }
+
         return '<div class="hold"><span>' + esc(h.name) + '</span>' +
           '<span class="tag">' + esc(h.instrumentType || "—") + "</span>" +
           (h.rate ? '<span>' + esc(String(h.rate)) + "% advertised</span>" : "") +
-          yieldHtml +
+          yieldHtml + unitHtml +
           '<div class="spacer"></div>' +
           '<button class="btn sm" data-edit-hold="' + esc(h.id) + '">Edit</button></div>';
       }).join("");
@@ -1773,12 +1792,14 @@ function openHold(id, accountId) {
       return '<option value="' + esc(c.key) + '"' + (r && r.reliefCategory === c.key ? " selected" : "") + ">" + esc(c.label) + "</option>";
     }).join("");
   $("h_units").checked = r ? !!r.unitBased : false;
+  $("h_fixed").value = r && r.fixedPrice ? String(r.fixedPrice) : "";
   $("holdDelete").style.display = r ? "" : "none";
   showErrors("holdErr", []);
   openModal("holdModal");
 }
 
 $("holdSave").onclick = function () {
+  var fixedPrice = WM.parseAmount($("h_fixed").value);
   var rec = {
     id: editing.hold || undefined,
     name: $("h_name").value.trim(),
@@ -1788,9 +1809,12 @@ $("holdSave").onclick = function () {
     feePct: parseFloat($("h_fee").value) || 0,
     salesPct: parseFloat($("h_sales").value) || 0,
     unitBased: $("h_units").checked,
-    reliefCategory: $("h_relief").value || null
+    reliefCategory: $("h_relief").value || null,
+    fixedPrice: fixedPrice.value
   };
-  if (showErrors("holdErr", WM.validate("holdings", rec, state))) return;
+  var holdErrors = WM.validate("holdings", rec, state);
+  if (fixedPrice.error) holdErrors = holdErrors.concat(["Fixed unit price must be a number"]);
+  if (showErrors("holdErr", holdErrors)) return;
   WM.upsert(state, "holdings", rec, deviceId);
   closeModal("holdModal");
   commit();
