@@ -113,6 +113,17 @@
         if (h.fixedPrice === undefined) h.fixedPrice = null;
       });
       return o;
+    },
+
+    // v9 -> v10: a holding can be tagged as one of EPF's three accounts (FR-9.1).
+    // Existing holdings are set to null explicitly rather than left undefined — the
+    // field must be uniform for CSV export, and guessing which holding is EPF from its
+    // name would tag the wrong one silently.
+    9: function (o) {
+      (o.holdings || []).forEach(function (h) {
+        if (h.epfAccount === undefined) h.epfAccount = null;
+      });
+      return o;
     }
   };
 

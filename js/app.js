@@ -520,6 +520,223 @@ $("saveLimitsBtn").onclick = function () {
 
 $("taxYear").onchange = renderRelief;
 
+// ---- EPF three accounts (FR-9.1) -------------------------------------------
+//
+// The three balances come from the owner's statement as three separate holdings. This
+// section adds only what EPF-specific arithmetic can be trusted to do: divide a
+// contribution the way policy currently says, and estimate the annual dividend so the
+// credited figure has something to be checked against. Neither ever writes over a
+// recorded number.
+
+function renderEpf() {
+  var years = WM.yearsWithEntries(state);
+  var currentYear = WM.currentPeriod().slice(0, 4);
+  if (years.indexOf(currentYear) === -1) years = [currentYear].concat(years);
+  var sel = $("epfYear");
+  var chosenYear = sel.value && years.indexOf(sel.value) !== -1 ? sel.value : years[0];
+  sel.innerHTML = years.map(function (y) {
+    return '<option value="' + esc(y) + '"' + (y === chosenYear ? " selected" : "") + ">" + esc(y) + "</option>";
+  }).join("");
+
+  renderEpfBalances(chosenYear);
+  renderEpfSplitFields();
+  renderEpfSplitResult();
+  renderEpfDividend(chosenYear);
+}
+
+// The period shown is the last month of the chosen year, or the current month when that
+// year is still running — showing December of a year in progress would carry every
+// balance forward into months that have not happened.
+function epfPeriodFor(year) {
+  var now = WM.currentPeriod();
+  var december = year + "-12";
+  return december > now ? now : december;
+}
+
+function renderEpfBalances(year) {
+  var b = WM.balances(state, epfPeriodFor(year));
+  var problems = WM.epfIssues(state);
+
+  var tagged = b.lines.some(function (l) { return l.holdingId; });
+  if (!tagged) {
+    $("epfBalances").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">No EPF accounts tagged</div>' +
+      '<div class="es">Add a holding for each of Akaun Persaraan, Sejahtera and Fleksibel, ' +
+      'then name the EPF account when editing it. Your statement gives all three figures.</div></div></div>';
+    return;
+  }
+
+  var lines = b.lines.map(function (l) {
+    var known = l.balance !== null && l.balance !== undefined;
+    var sub = known
+      ? (l.holdingName ? esc(l.holdingName) : "") +
+        (l.sharePct !== null ? " · " + esc(l.sharePct.toFixed(1)) + "% of EPF" : "") +
+        (l.stale ? " · carried from " + esc(l.sourcePeriod) : "")
+      : "Not tagged, or never valued — not counted in the total";
+    return '<div class="wline"><div class="wn">' + esc(l.label) +
+      '<div class="ws">' + sub + "</div></div>" +
+      '<div class="wv' + (l.stale ? " stale" : "") + '">' +
+      (known ? esc(fmtRM(l.balance)) : "—") +
+      (l.stale ? '<span class="stale-mark" title="carried forward from ' + esc(l.sourcePeriod) + '">*</span>' : "") +
+      "</div></div>";
+  }).join("");
+
+  // A partial total is still a total, but the shares beside it are shares of what is
+  // known — say so rather than letting them read as shares of the whole fund.
+  var caveat = b.complete ? "" : (b.recordedCount
+    ? '<div class="prev">Only ' + b.recordedCount + " of the three accounts " +
+      (b.recordedCount === 1 ? "has a balance" : "have balances") +
+      "; the total and shares cover those only.</div>"
+    : '<div class="prev">Nothing recorded yet. Enter each account\'s balance on the Month tab.</div>');
+
+  $("epfBalances").innerHTML = '<div class="card">' + lines +
+    '<div class="subtot"><span>EPF total</span><span class="wv">' +
+    esc(fmtRM(b.total)) + "</span></div>" + caveat +
+    (problems.length
+      ? '<div class="prev">' + problems.map(function (m) { return esc(m); }).join("<br>") + "</div>"
+      : "") +
+    "</div>";
+}
+
+function renderEpfSplitFields() {
+  $("epfSplitFields").innerHTML = WM.splitFor(state).map(function (sp) {
+    return '<div class="fitem"><label class="fl" for="epf_' + esc(sp.key) + '">' + esc(sp.label) +
+      (sp.isDefault ? ' <span class="tag">confirm</span>' : "") + "</label>" +
+      '<input type="number" step="0.1" id="epf_' + esc(sp.key) + '" value="' + esc(String(sp.sharePct)) + '">' +
+      '<div class="prev">' + esc(sp.note) + "</div></div>";
+  }).join("");
+}
+
+// Rendered on its own so typing an amount does not re-render the app — and, more to the
+// point, does not touch state. Rendering must never mutate.
+function renderEpfSplitResult() {
+  var parsed = WM.parseAmount($("epfContrib").value);
+  if (parsed.error) {
+    $("epfSplitResult").innerHTML = '<div class="prev">That is not a number.</div>';
+    return;
+  }
+  var split = WM.splitContribution(parsed.value, state);
+  if (!split) { $("epfSplitResult").innerHTML = ""; return; }
+  if (!split.allocatable) {
+    $("epfSplitResult").innerHTML = '<div class="prev">The shares total 0% — nothing to divide by.</div>';
+    return;
+  }
+  $("epfSplitResult").innerHTML = split.parts.map(function (part) {
+    return '<div class="wline"><div class="wn">' + esc(part.label) +
+      '<div class="ws">' + esc(String(part.sharePct)) + "%</div></div>" +
+      '<div class="wv">' + esc(fmtRM(part.amount)) + "</div></div>";
+  }).join("") +
+    '<div class="subtot"><span>Divided</span><span class="wv">' +
+    esc(fmtRM(split.total)) + "</span></div>" +
+    (split.sumsTo100 ? "" :
+      '<div class="prev">The shares total ' + esc(String(split.sharePctTotal)) +
+      "%, not 100%. The amount is divided in proportion so nothing is lost, but check the percentages.</div>") +
+    '<div class="prev">What EPF actually credits is on your statement. Enter that, not this.</div>';
+}
+
+function renderEpfDividend(year) {
+  $("epfRateYear").textContent = year;
+  var rate = WM.dividendRateFor(state, year);
+  if (document.activeElement !== $("epfRate")) {
+    $("epfRate").value = rate === null ? "" : String(rate);
+  }
+
+  var sum = WM.yearSummary(state, year, rate);
+
+  if (!sum.hasRate) {
+    $("epfDividend").innerHTML = '<div class="prev">No rate entered for ' + esc(year) +
+      ". EPF declares it once a year; nothing is estimated until you enter the declared figure.</div>";
+    return;
+  }
+
+  var rows = sum.lines.filter(function (l) { return l.holdingId; });
+  if (!rows.length) {
+    $("epfDividend").innerHTML = '<div class="prev">No EPF accounts tagged yet.</div>';
+    return;
+  }
+
+  // A year still running has no dividend to compare against. The estimate covers twelve
+  // months; income recorded so far covers fewer, and subtracting one from the other would
+  // report a shortfall that is only the calendar. The difference is shown once the year
+  // is over and the credit has landed.
+  var yearOver = year < WM.currentPeriod().slice(0, 4);
+
+  $("epfDividend").innerHTML = "<hr class=\"hr\">" + rows.map(function (l) {
+    if (!l.estimate) {
+      return '<div class="wline"><div class="wn">' + esc(l.label) +
+        '<div class="ws">No balance recorded for December ' + esc(String(Number(year) - 1)) +
+        ", so there is nothing to estimate from</div></div><div class=\"wv\">—</div></div>";
+    }
+    var diff = l.difference;
+    var sub = "on " + esc(fmtRM(l.estimate.dividendBase)) +
+      (l.estimate.openingStale ? " · opening balance carried from " + esc(l.estimate.openingPeriod) : "") +
+      (l.recorded !== null
+        ? " · " + esc(fmtRM(l.recorded)) + (yearOver ? " credited" : " income so far")
+        : (yearOver ? " · nothing credited" : " · no income recorded yet"));
+    return '<div class="wline"><div class="wn">' + esc(l.label) +
+      '<div class="ws">' + sub +
+      (yearOver && diff !== null && Math.abs(diff) >= 0.01
+        ? "<br>Statement differs by " + esc(fmtRM(Math.abs(diff))) +
+          (diff > 0 ? " more" : " less") + " than this estimate. The statement is the figure that counts."
+        : "") +
+      "</div></div><div class=\"wv\">" + esc(fmtRM(l.estimate.dividend)) + "</div></div>";
+  }).join("") +
+    '<div class="subtot"><span>Estimated for ' + esc(year) + '</span><span class="wv">' +
+    esc(fmtRM(sum.totalEstimated)) + "</span></div>" +
+    (sum.totalRecorded !== null
+      ? '<div class="prev">' + esc(fmtRM(sum.totalRecorded)) +
+        (yearOver ? " actually credited and recorded." : " of income recorded so far this year.") + "</div>"
+      : "") +
+    (yearOver ? "" :
+      '<div class="prev">' + esc(year) + " is still running, so this is the whole year's estimate " +
+      "against part of a year's entries. Nothing is compared until the year is over and the dividend is credited.</div>") +
+    '<div class="prev">Illustrative. The opening balance earns a full year; money moving in month ' +
+    "m earns for the months left after it. EPF has changed its basis before — the credited amount is authoritative.</div>";
+}
+
+$("epfYear").onchange = renderEpf;
+$("epfContrib").oninput = renderEpfSplitResult;
+
+$("saveEpfSplitBtn").onclick = function () {
+  var shares = {};
+  var bad = null;
+  WM.ACCOUNTS.forEach(function (a) {
+    var raw = $("epf_" + a.key).value;
+    var n = parseFloat(raw);
+    if (raw === "" || isNaN(n) || n < 0) bad = bad || a.label;
+    shares[a.key] = n;
+  });
+  if (bad) { toast(bad + " share must be a number, zero or more"); return; }
+  state.settings.epfSplit = shares;
+  commit();
+  toast("EPF shares saved");
+};
+
+$("resetEpfSplitBtn").onclick = function () {
+  delete state.settings.epfSplit;
+  commit();
+  toast("Back to the default shares — still worth confirming against KWSP");
+};
+
+$("saveEpfRateBtn").onclick = function () {
+  var year = $("epfYear").value;
+  var raw = $("epfRate").value.trim();
+  state.settings.epfDividendRates = state.settings.epfDividendRates || {};
+  if (raw === "") {
+    // Clearing restores "not declared", which is not the same as a year that paid
+    // nothing. A rate of 0 stays 0 if that is what was typed.
+    delete state.settings.epfDividendRates[year];
+    commit();
+    toast("Rate cleared for " + year);
+    return;
+  }
+  var n = parseFloat(raw);
+  if (isNaN(n) || n < 0) { toast("Dividend rate must be a number, zero or more"); return; }
+  state.settings.epfDividendRates[year] = n;
+  commit();
+  toast("Dividend rate saved for " + year);
+};
+
 // ---- goals (S5) ------------------------------------------------------------
 
 var GOAL_WORDS = {
@@ -1791,6 +2008,10 @@ function openHold(id, accountId) {
     WM.CATEGORIES.map(function (c) {
       return '<option value="' + esc(c.key) + '"' + (r && r.reliefCategory === c.key ? " selected" : "") + ">" + esc(c.label) + "</option>";
     }).join("");
+  $("h_epf").innerHTML = '<option value="">Not an EPF account</option>' +
+    WM.ACCOUNTS.map(function (a) {
+      return '<option value="' + esc(a.key) + '"' + (r && r.epfAccount === a.key ? " selected" : "") + ">" + esc(a.label) + "</option>";
+    }).join("");
   $("h_units").checked = r ? !!r.unitBased : false;
   $("h_fixed").value = r && r.fixedPrice ? String(r.fixedPrice) : "";
   $("holdDelete").style.display = r ? "" : "none";
@@ -1810,6 +2031,7 @@ $("holdSave").onclick = function () {
     salesPct: parseFloat($("h_sales").value) || 0,
     unitBased: $("h_units").checked,
     reliefCategory: $("h_relief").value || null,
+    epfAccount: $("h_epf").value || null,
     fixedPrice: fixedPrice.value
   };
   var holdErrors = WM.validate("holdings", rec, state);
@@ -1984,6 +2206,7 @@ function render() {
   renderPidm();
   renderMonth();
   renderTree();
+  renderEpf();
   renderLiabilities();
   renderAssets();
   renderStrategy();

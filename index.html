@@ -300,6 +300,47 @@ tbody tr.paid td{color:var(--tx3)}
   <div class="sec">
     <label class="chk"><input type="checkbox" id="showArchived"> Show archived accounts</label>
   </div>
+
+  <div class="sec" id="epfSec">
+    <div class="sec-h">
+      <div class="sec-t">EPF</div>
+      <div class="spacer"></div>
+      <select id="epfYear" style="width:auto;min-width:110px"></select>
+    </div>
+    <div id="epfBalances"></div>
+    <div class="card" style="margin-top:12px">
+      <div class="sec-t" style="margin-bottom:8px">How a contribution divides</div>
+      <p class="note" style="margin-bottom:12px"><b>Policy, not fact.</b> These shares are what EPF applies to new contributions today. They changed in the 2024 restructure and can change again &mdash; confirm them against KWSP before relying on the split.</p>
+      <div class="fgrid" id="epfSplitFields"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="saveEpfSplitBtn">Save shares</button>
+        <button class="btn" id="resetEpfSplitBtn">Use defaults</button>
+      </div>
+      <hr class="hr">
+      <div class="fgrid">
+        <div class="fitem">
+          <label class="fl" for="epfContrib">Contribution to divide</label>
+          <input type="text" inputmode="decimal" id="epfContrib" placeholder="RM 1,000.00">
+        </div>
+      </div>
+      <div id="epfSplitResult"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="sec-t" style="margin-bottom:8px">Annual dividend</div>
+      <p class="note" style="margin-bottom:12px">EPF declares one rate a year and credits it to all three accounts. Enter the declared rate and this estimates what each account earns, to check against the statement. The estimate never changes a recorded figure &mdash; where they differ, the statement is right.</p>
+      <div class="fgrid">
+        <div class="fitem">
+          <label class="fl" for="epfRate">Declared dividend % for <span id="epfRateYear">the year</span></label>
+          <input type="number" id="epfRate" step="0.01" placeholder="not entered">
+        </div>
+      </div>
+      <div class="row" style="margin-top:4px">
+        <button class="btn" id="saveEpfRateBtn">Save rate</button>
+      </div>
+      <div id="epfDividend"></div>
+    </div>
+  </div>
+
   <div class="sec">
     <div class="sec-h">
       <div class="sec-t">Physical assets</div>
@@ -838,6 +879,10 @@ tbody tr.paid td{color:var(--tx3)}
         <label class="fl" for="h_relief">Tax relief category</label>
         <select id="h_relief"></select>
       </div>
+      <div class="fitem">
+        <label class="fl" for="h_epf">EPF account</label>
+        <select id="h_epf"></select>
+      </div>
       <div class="fitem"><label class="chk"><input type="checkbox" id="h_units"> Unit-based</label></div>
       <div class="fitem">
         <label class="fl" for="h_fixed">Fixed unit price</label>
@@ -846,6 +891,7 @@ tbody tr.paid td{color:var(--tx3)}
     </div>
     <p class="note" style="margin-top:10px">Set a fixed price for ASNB-style funds where a unit is always RM 1.00. Their return arrives as extra units, so there is never an unrealised gain — the dividend is the return.</p>
     <p class="note" style="margin-top:10px">Tagging a holding sums its yearly contributions on the Tax tab. It does not decide whether the relief applies to you — check that against LHDN for the year you are filing.</p>
+    <p class="note" style="margin-top:10px">Naming an EPF account puts this holding in the three-account breakdown on the Accounts tab. Keep each of Akaun Persaraan, Sejahtera and Fleksibel as its own holding — your statement gives all three, and splitting one total by percentage would replace those figures with a guess.</p>
     <hr class="hr">
     <div class="row">
       <button class="btn pri" id="holdSave">Save</button>
@@ -875,6 +921,7 @@ tbody tr.paid td{color:var(--tx3)}
 <script src="js/strategy.js"></script>
 <script src="js/relief.js"></script>
 <script src="js/units.js"></script>
+<script src="js/epf.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
