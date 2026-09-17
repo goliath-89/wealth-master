@@ -520,6 +520,309 @@ $("saveLimitsBtn").onclick = function () {
 
 $("taxYear").onchange = renderRelief;
 
+// ---- importing a balance sheet (FR-10.1 - 10.6) ----------------------------
+//
+// Extraction proposes, the owner confirms. Reading a file changes nothing; what it found
+// is shown as a review table with every guess editable, and only the Import button writes.
+//
+// The undo (FR-10.4) is a snapshot of the whole store taken immediately before applying,
+// held in memory. Reversing 772 valuations by computing inverses would have to be right
+// about every one of them; restoring a copy is right by construction. It does not survive
+// a reload, and the UI says so rather than implying a permanence it does not have — the
+// connected data file's own version history is the longer-lived backstop.
+var pendingImport = null;      // the analysis awaiting confirmation
+var importUndo = null;         // { state, summary } captured at the moment of import
+
+function resetReview() {
+  pendingImport = null;
+  $("reviewSec").style.display = "none";
+  $("reviewRows").innerHTML = "";
+  $("reviewSummary").innerHTML = "";
+  $("reviewProblems").innerHTML = "";
+}
+
+// FileReader rather than file.text() / file.arrayBuffer(): the newer methods are absent
+// from older Safari, which is one of the browsers this app has to degrade to, and absent
+// from jsdom, which means the import path could not be tested through the real picker at
+// all. One API that works everywhere beats two that mostly do.
+function readFile(file, as) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () { resolve(reader.result); };
+    reader.onerror = function () {
+      reject(reader.error || new Error("The file could not be read"));
+    };
+    if (as === "buffer") reader.readAsArrayBuffer(file);
+    else reader.readAsText(file);
+  });
+}
+
+$("sheetPickBtn").onclick = function () { $("sheetFileIn").click(); };
+
+$("sheetFileIn").onchange = function (e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  $("sheetFileIn").value = "";
+  $("sheetStatus").innerHTML = '<div class="prev">Reading ' + esc(file.name) + "…</div>";
+
+  var isCsv = /\.csv$/i.test(file.name) || file.type === "text/csv";
+  var read = isCsv
+    ? readFile(file, "text").then(function (text) { return WM.parseCsvGrid(text); })
+    : readFile(file, "buffer").then(function (buf) { return WM.readWorkbook(new Uint8Array(buf)); });
+
+  read.then(function (grid) {
+    var analysis = WM.analyseSheet(grid, state);
+    if (!analysis.ok) {
+      $("sheetStatus").innerHTML = '<div class="warnbox" style="margin-top:12px">' +
+        esc(analysis.reason) + "</div>";
+      return;
+    }
+    analysis.fileName = file.name;
+    pendingImport = analysis;
+    $("sheetStatus").innerHTML = "";
+    renderReview();
+    // Guarded: scrolling is a convenience, and an environment without layout throwing
+    // here would land in the catch below and report a successful read as a failed one.
+    var sec = $("reviewSec");
+    if (sec.scrollIntoView) sec.scrollIntoView({ block: "start" });
+  }).catch(function (err) {
+    // A file that cannot be read is named, with the reason, rather than failing quietly.
+    $("sheetStatus").innerHTML = '<div class="warnbox" style="margin-top:12px">' +
+      esc(file.name) + " could not be read: " + esc(err && err.message ? err.message : String(err)) +
+      "</div>";
+    console.error("Sheet import failed:", err);
+  });
+};
+
+function importTotals(a) {
+  var t = { rows: 0, added: 0, updated: 0, unchanged: 0 };
+  a.proposals.forEach(function (p) {
+    if (!p.include) return;
+    t.rows++;
+    if (!p.diff) return;
+    t.added += p.diff.added;
+    t.updated += p.diff.updated;
+    t.unchanged += p.diff.unchanged;
+  });
+  return t;
+}
+
+function renderReview() {
+  var a = pendingImport;
+  if (!a) { resetReview(); return; }
+  $("reviewSec").style.display = "";
+
+  var t = importTotals(a);
+  var recon = a.reconciliation;
+
+  // The reconciliation verdict leads, because it is the one thing that says whether the
+  // file was read correctly at all.
+  var verdict = recon.ok
+    ? '<div class="kpi"><div class="k">Checks against its own totals</div>' +
+      '<div class="v" style="font-size:16px;color:var(--good)">Adds up</div>' +
+      '<div class="d neu">' + recon.checks.length + " total" +
+      (recon.checks.length === 1 ? "" : "s") + " re-added and matched</div></div>"
+    : '<div class="kpi"><div class="k">Checks against its own totals</div>' +
+      '<div class="v" style="font-size:16px;color:var(--bad)">Does not add up</div>' +
+      '<div class="d neu">' + recon.failed.length + " total" +
+      (recon.failed.length === 1 ? "" : "s") + " disagree</div></div>";
+
+  $("reviewSummary").innerHTML = '<div class="kpis">' + verdict +
+    '<div class="kpi"><div class="k">Line items</div><div class="v">' + t.rows +
+    '</div><div class="d neu">of ' + a.proposals.length + " found</div></div>" +
+    '<div class="kpi"><div class="k">Months</div><div class="v">' + a.periods.length +
+    '</div><div class="d neu">' + esc(a.periods[0]) + " to " +
+    esc(a.periods[a.periods.length - 1]) + "</div></div>" +
+    '<div class="kpi"><div class="k">Figures</div><div class="v">' + (t.added + t.updated) +
+    '</div><div class="d neu">' + t.added + " new, " + t.updated + " changed, " +
+    t.unchanged + " already right</div></div></div>";
+
+  var warn = "";
+  if (!recon.ok) {
+    warn += '<div class="warnbox" style="margin-top:12px"><b>This file does not add up.</b> ' +
+      "Its own totals disagree with the lines beneath them, which usually means the sheet " +
+      "was read wrongly &mdash; a shifted column, or a total mistaken for a line item. " +
+      "Nothing is adjusted to make them agree. Check these before importing:<br>" +
+      recon.failed.map(function (c) {
+        var first = c.mismatches[0];
+        return "&middot; <b>" + esc(c.label) + "</b> — " + c.mismatches.length + " month" +
+          (c.mismatches.length === 1 ? "" : "s") + " differ, first at " + esc(first.period) +
+          ": the sheet says " + esc(fmtRM(first.stated)) + ", its lines add to " +
+          esc(fmtRM(first.summed)) + ".";
+      }).join("<br>") + "</div>";
+  }
+  if (a.problems.length) {
+    warn += '<div class="warnbox" style="margin-top:12px"><b>' + a.problems.length +
+      " thing" + (a.problems.length === 1 ? "" : "s") + " could not be imported as " +
+      (a.problems.length === 1 ? "a figure" : "figures") + ".</b> Nothing is dropped " +
+      "silently:<br>" +
+      a.problems.map(function (p) { return "&middot; " + esc(p.reason); }).join("<br>") +
+      "</div>";
+  }
+  $("reviewProblems").innerHTML = warn;
+
+  $("reviewRows").innerHTML = a.proposals.map(function (p, i) {
+    var d = p.diff || { added: p.count, updated: 0, unchanged: 0, recordStatus: "new" };
+    var badge = d.recordStatus === "existing"
+      ? (d.updated ? '<span class="ibadge upd">updates</span>'
+                   : '<span class="ibadge same">matches</span>')
+      : '<span class="ibadge new">new</span>';
+
+    var fields = "";
+    if (p.kind === "holding") {
+      fields =
+        '<div><label class="fl" for="ii_' + i + '">Institution</label>' +
+        '<input type="text" id="ii_' + i + '" data-imp="institutionName" data-i="' + i +
+        '" value="' + esc(p.institutionName || "") + '"></div>' +
+        '<div><label class="fl" for="ic_' + i + '">Kind of account</label>' +
+        '<select id="ic_' + i + '" data-imp="accountClass" data-i="' + i + '">' +
+        ["cash", "investment", "retirement", "other"].map(function (c) {
+          return '<option value="' + c + '"' + (p.accountClass === c ? " selected" : "") +
+            ">" + c.charAt(0).toUpperCase() + c.slice(1) + "</option>";
+        }).join("") + "</select></div>";
+    } else if (p.kind === "liability") {
+      fields = '<div><label class="fl" for="il_' + i + '">Kind of debt</label>' +
+        '<select id="il_' + i + '" data-imp="liabilityType" data-i="' + i + '">' +
+        ["mortgage", "hire purchase", "personal loan", "credit card", "PTPTN",
+         "ASB financing", "other"].map(function (c) {
+          return '<option value="' + esc(c) + '"' + (p.liabilityType === c ? " selected" : "") +
+            ">" + esc(c) + "</option>";
+        }).join("") + "</select></div>";
+    } else {
+      fields = '<div><label class="fl" for="ia_' + i + '">Kind of asset</label>' +
+        '<select id="ia_' + i + '" data-imp="assetClass" data-i="' + i + '">' +
+        ["property", "vehicle", "valuable", "other"].map(function (c) {
+          return '<option value="' + c + '"' + (p.assetClass === c ? " selected" : "") +
+            ">" + c.charAt(0).toUpperCase() + c.slice(1) + "</option>";
+        }).join("") + "</select></div>";
+    }
+
+    return '<div class="irow' + (p.include ? "" : " off") + '" data-row="' + i + '">' +
+      '<div class="ihead">' +
+      '<label class="chk"><input type="checkbox" data-imp="include" data-i="' + i + '"' +
+      (p.include ? " checked" : "") + "></label>" +
+      '<div class="iname">' + esc(p.label) +
+      '<div class="isub">' + esc(p.category || "no category") + " &middot; " +
+      p.count + " month" + (p.count === 1 ? "" : "s") +
+      (d.updated ? " &middot; " + d.updated + " would change" : "") +
+      (d.unchanged ? " &middot; " + d.unchanged + " already right" : "") +
+      "</div></div>" + badge + "</div>" +
+      '<div class="ifields">' +
+      '<div><label class="fl" for="in_' + i + '">Name</label>' +
+      '<input type="text" id="in_' + i + '" data-imp="name" data-i="' + i +
+      '" value="' + esc(p.name) + '"></div>' +
+      '<div><label class="fl" for="ik_' + i + '">Import as</label>' +
+      '<select id="ik_' + i + '" data-imp="kind" data-i="' + i + '">' +
+      ["holding", "asset", "liability"].map(function (k) {
+        return '<option value="' + k + '"' + (p.kind === k ? " selected" : "") + ">" +
+          (k === "holding" ? "Holding" : k === "asset" ? "Physical asset" : "Liability") +
+          "</option>";
+      }).join("") + "</select></div>" + fields + "</div></div>";
+  }).join("");
+}
+
+// Edits are delegated, so the table can be rebuilt without rewiring every control.
+$("reviewRows").onchange = function (e) {
+  var el = e.target;
+  var field = el.getAttribute && el.getAttribute("data-imp");
+  if (!field || !pendingImport) return;
+  var p = pendingImport.proposals[parseInt(el.getAttribute("data-i"), 10)];
+  if (!p) return;
+
+  if (field === "include") {
+    p.include = el.checked;
+    // Only the affected row's dimming and the summary change, so the table is not rebuilt
+    // underneath the owner mid-edit.
+    var row = el.closest ? el.closest(".irow") : null;
+    if (row) row.classList.toggle("off", !p.include);
+    var t = importTotals(pendingImport);
+    var v = $("reviewSummary").querySelectorAll(".kpi .v");
+    if (v[1]) v[1].textContent = String(t.rows);
+    if (v[3]) v[3].textContent = String(t.added + t.updated);
+    return;
+  }
+
+  if (field === "name") {
+    p.name = el.value.trim();
+    // Renaming changes what it would match in the store, so the diff is recomputed.
+    p.diff = WM.diffProposal(state, p);
+    renderReview();
+    return;
+  }
+  if (field === "kind") {
+    p.kind = el.value;
+    if (p.kind === "holding" && !p.accountClass) p.accountClass = "other";
+    if (p.kind === "liability" && !p.liabilityType) p.liabilityType = "other";
+    if (p.kind === "asset" && !p.assetClass) p.assetClass = "other";
+    p.diff = WM.diffProposal(state, p);
+    renderReview();
+    return;
+  }
+  p[field] = el.value;
+};
+
+$("reviewAllBtn").onclick = function () {
+  if (!pendingImport) return;
+  pendingImport.proposals.forEach(function (p) { p.include = true; });
+  renderReview();
+};
+$("reviewNoneBtn").onclick = function () {
+  if (!pendingImport) return;
+  pendingImport.proposals.forEach(function (p) { p.include = false; });
+  renderReview();
+};
+
+function cancelReview() {
+  resetReview();
+  $("sheetStatus").innerHTML = '<div class="prev">Import cancelled. Nothing was changed.</div>';
+}
+$("reviewCancelBtn").onclick = cancelReview;
+$("reviewCancelBtn2").onclick = cancelReview;
+
+$("reviewConfirmBtn").onclick = function () {
+  if (!pendingImport) return;
+  var chosen = pendingImport.proposals.filter(function (p) { return p.include; });
+  if (!chosen.length) { toast("Nothing is ticked to import"); return; }
+  var unnamed = chosen.filter(function (p) { return !p.name; });
+  if (unnamed.length) { toast("Every line being imported needs a name"); return; }
+
+  // The snapshot is taken before a single record is written, and is what Undo restores.
+  var snapshot = JSON.parse(JSON.stringify(state));
+  var summary = WM.applyImport(state, pendingImport.proposals, deviceId,
+    { keepNotes: $("reviewKeepNotes").checked });
+
+  importUndo = { state: snapshot, summary: summary, fileName: pendingImport.fileName };
+  resetReview();
+  commit();
+
+  var parts = [];
+  if (summary.valuationsAdded) parts.push(summary.valuationsAdded + " added");
+  if (summary.valuationsUpdated) parts.push(summary.valuationsUpdated + " changed");
+  if (summary.valuationsUnchanged) parts.push(summary.valuationsUnchanged + " already right");
+  toast("Imported " + summary.rows + " line" + (summary.rows === 1 ? "" : "s") +
+    (parts.length ? " — " + parts.join(", ") : ""));
+};
+
+$("undoImportBtn").onclick = function () {
+  if (!importUndo) return;
+  // Restoring the snapshot wholesale is the reversal. Anything entered by hand since the
+  // import would go with it, which is why the button says so and disappears once used.
+  state = importUndo.state;
+  var undone = importUndo.summary;
+  importUndo = null;
+  commit();
+  toast("Import undone — " + undone.rows + " line" + (undone.rows === 1 ? "" : "s") +
+    " rolled back");
+};
+
+function renderImportState() {
+  var btn = $("undoImportBtn");
+  if (!importUndo) { btn.style.display = "none"; return; }
+  btn.style.display = "";
+  btn.textContent = "Undo import of " + importUndo.summary.rows + " line" +
+    (importUndo.summary.rows === 1 ? "" : "s");
+}
+
 // ---- EPF three accounts (FR-9.1) -------------------------------------------
 //
 // The three balances come from the owner's statement as three separate holdings. This
@@ -2478,6 +2781,7 @@ function render() {
   renderPidm();
   renderMonth();
   renderTree();
+  renderImportState();
   renderEpf();
   renderLiabilities();
   renderAssets();

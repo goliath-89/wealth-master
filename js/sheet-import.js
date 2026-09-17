@@ -191,7 +191,7 @@
 
     var anyBold = entries.some(function (e) { return e.bold; });
     if (anyBold) {
-      entries.forEach(function (e) { e.isTotal = e.bold; });
+      entries.forEach(function (e) { e.isTotal = e.bold || looksLikeTotal(e.label); });
     } else {
       inferTotals(entries, layout);
     }
@@ -217,11 +217,23 @@
     return { entries: entries, problems: problems };
   }
 
+  // Some labels are totals whatever the arithmetic says. "ASSETS" sums the category
+  // totals rather than the rows directly beneath it, and "NET WORTH" has nothing beneath
+  // it at all, so neither is caught by the scan below — and in a CSV, where no row is
+  // bold, both would be proposed as line items. Importing ASSETS as a holding
+  // double-counts the whole portfolio in one click.
+  var TOTAL_LABEL = /^\s*(grand\s+)?(total|sub-?total|assets?|liabilit(y|ies)|net\s*worth|net\s*assets?)\b/i;
+
+  function looksLikeTotal(label) {
+    return TOTAL_LABEL.test(label || "");
+  }
+
   // Used when formatting is unavailable. A row is a total when, for every month both it
   // and its followers populate, it equals their sum.
   function inferTotals(entries, layout) {
-    entries.forEach(function (e) { e.isTotal = false; });
+    entries.forEach(function (e) { e.isTotal = looksLikeTotal(e.label); });
     for (var i = 0; i < entries.length; i++) {
+      if (entries[i].isTotal) continue;
       for (var k = i + 1; k <= entries.length; k++) {
         if (k === entries.length || entries[k].isTotal) break;
         var matched = matchesSum(entries[i], entries.slice(i + 1, k + 1), layout);
@@ -487,6 +499,186 @@
     };
   }
 
+  // ---- CSV --------------------------------------------------------------
+
+  // A CSV of the same shape, turned into the grid the reader produces. Formatting is
+  // lost, so no cell is bold and totals fall through to the arithmetic inference above —
+  // which is why that path exists.
+  function parseCsvGrid(text) {
+    var rows = [], row = [], field = "", quoted = false, col = 1, maxCol = 0;
+    var i = 0;
+
+    function endField() {
+      var t = field.trim();
+      if (t !== "") {
+        // A figure may arrive as "RM 1,234.56" or "(1,234.56)" for a negative.
+        var cleaned = t.replace(/^RM\s*/i, "").replace(/,/g, "");
+        var negated = /^\(.*\)$/.test(cleaned);
+        if (negated) cleaned = cleaned.slice(1, -1);
+        var n = cleaned === "" ? NaN : Number(cleaned);
+        row[col] = { value: isNaN(n) ? t : (negated ? -n : n), bold: false };
+        if (col > maxCol) maxCol = col;
+      }
+      field = "";
+      col++;
+    }
+    function endRow() {
+      endField();
+      rows.push(row);
+      row = []; col = 1;
+    }
+
+    text = String(text).replace(/^\uFEFF/, "");
+    while (i < text.length) {
+      var ch = text.charAt(i);
+      if (quoted) {
+        if (ch === '"') {
+          if (text.charAt(i + 1) === '"') { field += '"'; i += 2; continue; }
+          quoted = false; i++; continue;
+        }
+        field += ch; i++; continue;
+      }
+      if (ch === '"') { quoted = true; i++; continue; }
+      if (ch === ",") { endField(); i++; continue; }
+      if (ch === "\r") { i++; continue; }
+      if (ch === "\n") { endRow(); i++; continue; }
+      field += ch; i++;
+    }
+    if (field !== "" || col > 1) endRow();
+
+    // The grid is one-based, so index 0 stays unused.
+    var out = [];
+    rows.forEach(function (r, idx) { out[idx + 1] = r; });
+    return { rows: out, maxRow: rows.length, maxCol: maxCol, name: "CSV" };
+  }
+
+  // ---- applying a confirmed proposal ---------------------------------------
+
+  function findByName(list, name) {
+    var target = norm(name);
+    return ent.live(list).filter(function (r) { return norm(r.name) === target; })[0] || null;
+  }
+
+  // Retirement money is not reachable, so it is not liquid. Everything else defaults to
+  // liquid and the owner can correct it — guessing illiquid would understate the
+  // emergency runway, which is the more dangerous direction to be wrong in.
+  function liquidFor(accountClass) {
+    return accountClass !== "retirement";
+  }
+
+  // Writes a confirmed proposal into the store. Callers snapshot first: this is a single
+  // undoable action (FR-10.4), and the undo is the caller's snapshot, not a reversal
+  // computed here.
+  //
+  // Records are matched by name before being created, so importing a refreshed sheet
+  // updates what is already there rather than growing a second copy of the portfolio.
+  function applyImport(state, proposals, deviceId, opts) {
+    opts = opts || {};
+    var keepNotes = opts.keepNotes !== false;
+    var made = {
+      institutions: 0, accounts: 0, holdings: 0, assets: 0, liabilities: 0,
+      valuationsAdded: 0, valuationsUpdated: 0, valuationsUnchanged: 0, notes: 0,
+      rows: 0
+    };
+
+    proposals.filter(function (p) { return p.include; }).forEach(function (p) {
+      var subjectId = null;
+      made.rows++;
+
+      if (p.kind === "liability") {
+        var liab = findByName(state.liabilities, p.name);
+        if (!liab) {
+          liab = ent.upsert(state, "liabilities", {
+            name: p.name, type: p.liabilityType || "other",
+            principal: 0, ratePct: 0, rateBasis: "reducing", tenureMonths: 0,
+            startDate: null, instalment: 0, linkedAssetId: null
+          }, deviceId);
+          made.liabilities++;
+        }
+        subjectId = liab.id;
+
+      } else if (p.kind === "asset") {
+        var asset = findByName(state.assets, p.name);
+        if (!asset) {
+          asset = ent.upsert(state, "assets", {
+            name: p.name, class: p.assetClass || "other", acquiredOn: null, cost: null,
+            depreciationModel: null, linkedLiabilityId: null, liquid: false
+          }, deviceId);
+          made.assets++;
+        }
+        subjectId = asset.id;
+
+      } else {
+        var holding = findByName(state.holdings, p.name);
+        if (!holding) {
+          var instName = (p.institutionName || p.name).trim();
+          var inst = findByName(state.institutions, instName);
+          if (!inst) {
+            inst = ent.upsert(state, "institutions",
+              { name: instName, type: "", pidmMember: false }, deviceId);
+            made.institutions++;
+          }
+          var acctName = (p.accountName || p.name).trim();
+          var acct = ent.live(state.accounts).filter(function (a) {
+            return a.institutionId === inst.id && norm(a.name) === norm(acctName);
+          })[0];
+          if (!acct) {
+            acct = ent.upsert(state, "accounts", {
+              institutionId: inst.id, name: acctName,
+              class: p.accountClass || "other", currency: "MYR",
+              shariah: false, liquid: liquidFor(p.accountClass),
+              // PIDM cover is never assumed. It protects deposits, not investments, and
+              // claiming it for an account that does not have it would misreport the one
+              // figure that exists to warn about uninsured money.
+              pidmProtected: false, archived: false
+            }, deviceId);
+            made.accounts++;
+          }
+          holding = ent.upsert(state, "holdings", {
+            accountId: acct.id, name: p.name, instrumentType: "",
+            rate: 0, feePct: 0, salesPct: 0, unitBased: false,
+            fixedPrice: null, reliefCategory: null, epfAccount: null
+          }, deviceId);
+          made.holdings++;
+        }
+        subjectId = holding.id;
+      }
+
+      var field = p.kind === "liability" ? "liabilityId"
+        : (p.kind === "asset" ? "assetId" : "holdingId");
+
+      Object.keys(p.values).sort().forEach(function (period) {
+        var entry = { period: period, balance: p.values[period] };
+        entry[field] = subjectId;
+        var before = val.valuationFor(state, subjectId, period);
+        var had = before && before.balance !== null && before.balance !== undefined;
+        if (had && agrees(before.balance, p.values[period])) {
+          made.valuationsUnchanged++;
+        } else if (had) {
+          made.valuationsUpdated++;
+        } else {
+          made.valuationsAdded++;
+        }
+        if (keepNotes && p.notes[period]) entry.note = p.notes[period];
+        val.upsertValuation(state, entry, deviceId);
+      });
+
+      // A note on a month with no figure still belongs to that month. It is written with
+      // a blank balance, which net worth skips, so keeping it cannot alter a total.
+      if (keepNotes) {
+        Object.keys(p.notes).forEach(function (period) {
+          if (p.values[period] !== undefined) return;
+          var e = { period: period, note: p.notes[period], balance: null };
+          e[field] = subjectId;
+          val.upsertValuation(state, e, deviceId);
+          made.notes++;
+        });
+      }
+    });
+
+    return made;
+  }
+
   return {
     RECONCILE_SEN: RECONCILE_SEN,
     parsePeriod: parsePeriod,
@@ -498,6 +690,9 @@
     reconcileSheet: reconcile,
     proposeTargets: proposeTargets,
     findExisting: findExisting,
+    parseCsvGrid: parseCsvGrid,
+    looksLikeTotal: looksLikeTotal,
+    applyImport: applyImport,
     diffProposal: diffProposal,
     analyseSheet: analyse
   };
