@@ -197,6 +197,24 @@ tbody tr.paid td{color:var(--tx3)}
 .legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px}
 .lg{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2)}
 .lgd{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.irow{padding:11px 0;border-bottom:.5px solid var(--line)}
+.irow:last-child{border-bottom:none}
+.irow.off{opacity:.45}
+.irow .ihead{display:flex;align-items:center;gap:10px}
+.irow .iname{flex:1;min-width:0;font-size:13.5px}
+.irow .isub{font-size:11px;color:var(--tx3);margin-top:2px}
+.irow .ifields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:9px}
+.irow .ifields input,.irow .ifields select{min-height:44px;font-size:13px}
+/* The tick decides whether a line is imported at all, so it gets the same 44px target
+   as every other control here — a 20px default checkbox is the easiest thing on this
+   screen to miss and the most consequential to get wrong. */
+.irow .ihead .chk{min-height:44px;display:flex;align-items:center;padding:0 6px;margin:0}
+.irow .ihead .chk input{width:20px;height:20px}
+.ibadge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;white-space:nowrap}
+.ibadge.new{background:rgba(34,181,115,.16);color:#3fd398}
+.ibadge.upd{background:rgba(224,160,42,.16);color:var(--warn)}
+.ibadge.same{background:var(--surface3);color:var(--tx3)}
+html[data-theme="light"] .ibadge.new{background:#dff3e8;color:#0f6e4a}
 /* A legend entry that toggles its series is a control, so it is a real button and
    carries pressed state. Muted rather than hidden when off — the reader needs to see
    what is available to bring back. */
@@ -555,6 +573,44 @@ tbody tr.paid td{color:var(--tx3)}
         <button class="btn pri" id="migrateBtn">Import Fund Desk v1 export</button>
       </div>
       <input type="file" id="migrateFile" accept="application/json,.json" style="display:none">
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><div class="sec-t">Import a balance sheet</div></div>
+    <div class="card">
+      <p class="note" style="margin-bottom:14px">A spreadsheet with your line items down the side and months across the top &mdash; <code>.xlsx</code> or <code>.csv</code>. Nothing is written until you have looked at what it proposes and confirmed it.</p>
+      <div class="row">
+        <button class="btn" id="sheetPickBtn">Choose a spreadsheet</button>
+        <button class="btn dgr sm" id="undoImportBtn" style="display:none">Undo last import</button>
+      </div>
+      <input type="file" id="sheetFileIn" accept=".xlsx,.csv,text/csv" style="display:none">
+      <div id="sheetStatus"></div>
+    </div>
+  </div>
+
+  <div class="sec" id="reviewSec" style="display:none">
+    <div class="sec-h">
+      <div class="sec-t">Check before importing</div>
+      <div class="spacer"></div>
+      <button class="btn sm" id="reviewCancelBtn">Cancel</button>
+    </div>
+    <div id="reviewSummary"></div>
+    <div id="reviewProblems"></div>
+    <div class="card" style="margin-top:12px">
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn sm" id="reviewAllBtn">Include all</button>
+        <button class="btn sm" id="reviewNoneBtn">Include none</button>
+      </div>
+      <div id="reviewRows"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <label class="chk"><input type="checkbox" id="reviewKeepNotes" checked> Keep text found in figure cells as notes</label>
+      <div class="row" style="margin-top:12px">
+        <button class="btn pri" id="reviewConfirmBtn">Import</button>
+        <button class="btn" id="reviewCancelBtn2">Cancel</button>
+      </div>
+      <p class="note" style="margin-top:10px">Undo stays available until you reload the page. Your data file also keeps its own version history.</p>
     </div>
   </div>
 
@@ -967,6 +1023,7 @@ tbody tr.paid td{color:var(--tx3)}
 <script src="js/epf.js"></script>
 <script src="js/series.js"></script>
 <script src="js/xlsx.js"></script>
+<script src="js/sheet-import.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
