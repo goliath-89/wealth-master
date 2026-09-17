@@ -89,6 +89,14 @@
     return handle.requestPermission({ mode: "readwrite" });
   }
 
+  // What counts as the data file. It is the app's own store, written as JSON and
+  // overwritten on every change, so anything else picked here is not a store to adopt —
+  // it is a file about to be destroyed. The check is by extension because that is all a
+  // picker gives us before the handle is used.
+  function isDataFileName(name) {
+    return /\.json$/i.test(String(name || ""));
+  }
+
   function connectNew(suggestedName) {
     return self.showSaveFilePicker({
       suggestedName: suggestedName || "wealth-master.json",
@@ -133,6 +141,7 @@
     isSupported: isSupported,
     checkPermission: checkPermission,
     requestPermission: requestPermission,
+    isDataFileName: isDataFileName,
     connectNew: connectNew,
     connectExisting: connectExisting,
     restore: restore,

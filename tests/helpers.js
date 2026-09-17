@@ -87,7 +87,10 @@ function loadLib(window) {
 // Loads the real index.html into jsdom and evals the app's own <script src> files
 // in the window's context, exactly as a browser would — for asserting on rendered
 // DOM output rather than re-implementing the app's logic in the test.
-function loadApp(seedState) {
+// `beforeApp` runs after the library modules are loaded and immediately before app.js,
+// which is the only moment a test can stub a browser API the app reads at startup — the
+// File System Access API, for one, which jsdom does not implement at all.
+function loadApp(seedState, beforeApp) {
   var html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   // Strip <script src="..."> tags — jsdom won't fetch local files without a
   // ResourceLoader, so scripts are eval'd manually below in document order instead.
@@ -110,6 +113,7 @@ function loadApp(seedState) {
 
   ["js/schema.js", "js/store.js", "js/migrate-funddesk.js", "js/import-guard.js",
    "js/csv.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/strategy.js", "js/relief.js", "js/units.js", "js/epf.js", "js/series.js", "js/xlsx.js", "js/sheet-import.js", "js/app.js"].forEach(function (rel) {
+    if (rel === "js/app.js" && typeof beforeApp === "function") beforeApp(window);
     var code = fs.readFileSync(path.join(ROOT, rel), "utf8");
     window.eval(code);
   });

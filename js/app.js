@@ -129,7 +129,14 @@ function renderFileSection() {
       : "Saved automatically on every change.";
   }
   $("fileRow").innerHTML = row;
-  $("fileNote").textContent = note;
+  // A refusal replaces the standing note: it is the answer to "why did nothing happen",
+  // and a toast would be gone before it was read.
+  if (fileRefusal) {
+    $("fileNote").innerHTML = '<span class="dangertext"><b>' + esc(fileRefusal.name) +
+      " was not connected.</b> " + esc(fileRefusal.reason) + "</span>";
+  } else {
+    $("fileNote").textContent = note;
+  }
 
   wire("connectNewBtn", function () { connect(WM.connectNew); });
   wire("connectExistingBtn", function () { connect(WM.connectExisting, true); });
@@ -2817,8 +2824,40 @@ function render() {
 
 // ---- data file -------------------------------------------------------------
 
+// The data file is the app's own store, written as JSON. A spreadsheet is not one, and
+// adopting one here is worse than useless: the handle becomes the save target, and the
+// next change of any kind writes JSON over the file. Somebody who means to import a
+// balance sheet and reaches for this control instead would lose the spreadsheet.
+function looksLikeDataFile(handle) {
+  return WM.isDataFileName(handle && handle.name);
+}
+
+// Held as state rather than written straight into the card, because connect() renders
+// again after this resolves and would paint over anything written out of band. Rendering
+// is a function of state here as everywhere else.
+var fileRefusal = null;
+
+function refuseFile(name, reason) {
+  fileRefusal = { name: name, reason: reason };
+  return WM.disconnect().then(function () {
+    fileHandle = null;
+    filePermission = "prompt";
+    lastSavedAt = null;
+    render();
+  });
+}
+
 function connect(picker, readFirst) {
+  fileRefusal = null;
   picker("wealth-master.json").then(function (handle) {
+    if (!looksLikeDataFile(handle)) {
+      // Refused before anything is written. connectNew uses a save picker, so keeping
+      // this handle and calling saveToFile() would overwrite the chosen file immediately.
+      return refuseFile(handle.name,
+        "The data file is where Wealth Master keeps its own records, as a .json file, and " +
+        "it is overwritten on every change. To bring a spreadsheet's figures in, use " +
+        "\u201cImport a balance sheet\u201d above instead \u2014 that reads the file and never writes to it.");
+    }
     fileHandle = handle;
     return WM.checkPermission(handle).then(function (p) {
       if (p !== "granted") return WM.requestPermission(handle);
@@ -2829,7 +2868,12 @@ function connect(picker, readFirst) {
       // same guard as any other import, so a stale file cannot quietly win.
       if (readFirst && p === "granted") {
         return WM.read(handle).then(function (text) {
-          applyImport(text, "file");
+          if (!applyImport(text, "file")) {
+            // It ends in .json but is not our data. Keeping the handle would still arm an
+            // overwrite of a file we could not read, so it is let go.
+            return refuseFile(handle.name,
+              "It could not be read as Wealth Master data, so it has been left alone.");
+          }
         });
       }
       return saveToFile();
@@ -2877,23 +2921,27 @@ function restoreFile() {
 var pendingImport = null;
 
 // Runs every inbound state through the guard before it can replace anything.
+// Returns whether the text was recognised as Wealth Master data. Callers need to know:
+// connect() must not keep a handle to a file it could not read, because that handle is
+// what the next save writes to.
 function applyImport(text, source) {
   var incoming;
   try {
     incoming = WM.migrate(JSON.parse(text));
   } catch (err) {
     toast("That file could not be read");
-    return;
+    return false;
   }
 
   var assessment = WM.assessImport(incoming, state);
   if (assessment.safe) {
     adoptState(incoming);
     toast(source === "file" ? "Loaded from file" : "Imported");
-    return;
+    return true;
   }
   pendingImport = incoming;
   showImportWarning(assessment);
+  return true;
 }
 
 function adoptState(incoming) {
