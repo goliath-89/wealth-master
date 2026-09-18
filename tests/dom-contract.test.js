@@ -25,6 +25,7 @@ var STATIC_IDS = [
   "a_arch", "a_name", "acctSave", "addAssetBtn", "addGoalBtn", "addInstBtn", "addLiabBtn",
   "allocChart", "allocDim", "allocLegend", "assetDelete", "assetErr", "assetList", "assetSave",
   "assumptions", "c_balance", "c_instalment", "c_interest", "allocTitle", "c_period", "c_result", "catStrip", "classChart", "classLegend",
+  "concNote", "concWrap",
   "dec_amount", "dec_growth", "decisionResult", "epfBalances", "epfContrib", "epfDividend",
   "epfRate", "epfSec", "epfSplitFields", "epfSplitResult", "epfYear", "feesList", "feesWrap",
   "fileLabel", "fileNote", "fileRow", "forecastChart", "forecastKpis", "forecastLegend",
@@ -43,7 +44,7 @@ var STATIC_IDS = [
   "s_class", "s_cost", "s_liab", "s_name", "s_value", "s_valueMonth", "saveEpfRateBtn", "saveEpfSplitBtn",
   "saveLimitsBtn", "saveMonthBtn", "saveSettingsBtn", "sc_contrib", "sc_inv", "scenarioErr",
   "scenarioSave", "seriesChart", "seriesLegend", "seriesMetric", "seriesNote", "seriesWrap",
-  "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetPeriod", "sheetStatus", "showArchived",
+  "set_concentration", "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetPeriod", "sheetStatus", "showArchived",
   "snackMsg", "staleNote", "staleWrap", "strat_extra", "strategyResult", "strategyWrap",
   "taxYear", "themeBtn", "topPeriod", "tree", "undoImportBtn", "v-data", "v-forecast", "v-loans", "v-month", "v-recap", "v-tax", "v-worth",
   "worthChart", "worthHero", "worthKpis", "worthLines"
