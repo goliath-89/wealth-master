@@ -39,6 +39,11 @@ function period(f, back) {
   for (var i = 0; i < (back || 0); i++) p = f.l.valuations.prevPeriod(p);
   return p;
 }
+function cellValue(row) {
+  var input = row.querySelector(".srow-v .cellin");
+  return input ? input.value : row.querySelector(".srow-v").textContent;
+}
+
 function rowFor(doc, name) {
   return Array.prototype.filter.call(doc.querySelectorAll("#tree .srow, #assetList .srow, #liabList .srow"),
     function (r) {
@@ -56,7 +61,7 @@ test("every holding row carries its value and what it did last month", function 
   var doc = helpers.loadApp(f.state).window.document;
   var row = rowFor(doc, "Savings");
   assert.ok(row, "the holding has a row");
-  assert.equal(row.querySelector(".srow-v").textContent, "RM 42,500.00");
+  assert.equal(cellValue(row), "RM 42,500");
   assert.match(row.querySelector(".srow-c").textContent, /▲ \+RM 2,500\.00 \(6\.3%\)/);
   assert.ok(row.querySelector(".srow-c .yield.up"));
 });
@@ -103,6 +108,7 @@ test("a holding with no rate to convert shows its own currency, not a ringgit gu
 
   var row = rowFor(helpers.loadApp(f.state).window.document, "VWRA");
   assert.match(row.querySelector(".srow-v").textContent, /USD/);
+  assert.equal(row.querySelector(".srow-v .cellin"), null, "and it is not offered for ringgit editing");
   assert.match(row.querySelector(".srow-c").textContent, /no rate/);
 });
 
@@ -139,12 +145,12 @@ test("physical assets and liabilities are rows in the same shape", function () {
 
   var doc = helpers.loadApp(f.state).window.document;
   var asset = rowFor(doc, "Family home");
-  assert.equal(asset.querySelector(".srow-v").textContent, "RM 520,000.00");
+  assert.equal(cellValue(asset), "RM 520,000");
   assert.match(asset.querySelector(".srow-c").textContent, /▲ \+RM 20,000\.00/);
   assert.ok(asset.querySelector("[data-edit-asset]"), "editing still opens the dialog");
 
   var debt = rowFor(doc, "Car loan");
-  assert.equal(debt.querySelector(".srow-v").textContent, "RM 58,500.00");
+  assert.equal(cellValue(debt), "RM 58,500");
   assert.match(debt.querySelector(".srow-c").textContent, /▼ −RM 1,500\.00/);
   assert.ok(debt.querySelector("[data-edit-liab]"));
 });

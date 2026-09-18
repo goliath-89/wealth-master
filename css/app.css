@@ -200,6 +200,17 @@ button,input{font-family:inherit;font-size:14px}
 .srow-v{width:150px;text-align:right;font-variant-numeric:tabular-nums;font-weight:500;flex-shrink:0}
 .srow-a{width:78px;display:flex;justify-content:flex-end;flex-shrink:0}
 .srow-warn{color:var(--warn)}
+/* An editable cell reads as a figure until it is touched, then as a field. */
+.cellin{
+  width:100%;min-height:44px;padding:4px 8px;text-align:right;font-size:13.5px;font-weight:500;
+  font-variant-numeric:tabular-nums;border:.5px solid transparent;border-radius:8px;
+  background:transparent;color:var(--tx);appearance:none;transition:.12s;
+}
+.cellin:hover{border-color:var(--line2);background:var(--surface2)}
+.cellin:focus{border-color:var(--accent);background:var(--surface2);box-shadow:0 0 0 3px var(--accent-tint);outline:none}
+.cellin::placeholder{color:var(--tx3);font-weight:400}
+.cellin.badfield{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-tint)}
+.srow-v .cellin{margin:-4px 0}
 .srow-flat{color:var(--tx3)}
 .srow.sheet-cols{
   padding:8px 14px;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;

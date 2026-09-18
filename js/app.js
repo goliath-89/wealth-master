@@ -2138,11 +2138,12 @@ function renderAssets() {
       equityLine +
       "</div>" +
       '<div class="srow-c">' + fig.change + "</div>" +
-      valueCell(fig) +
+      valueCell(fig, "assetId", a.id, a.name, true) +
       '<div class="srow-a"><button class="btn sm" data-edit-asset="' + esc(a.id) + '">Edit</button></div>' +
       "</div>";
   }).join("") + "</div>";
   bindAll("[data-edit-asset]", "data-edit-asset", openAsset);
+  bindCells("assetList");
 }
 
 function openAsset(id) {
@@ -2236,11 +2237,12 @@ function renderLiabilities() {
       '<span class="tag">' + (l.rateBasis === "flat" ? "Flat rate" : "Reducing") + "</span>" +
       "</div>" +
       '<div class="srow-c">' + fig.change + "</div>" +
-      valueCell(fig) +
+      valueCell(fig, "liabilityId", l.id, l.name, true) +
       '<div class="srow-a"><button class="btn sm" data-edit-liab="' + esc(l.id) + '">Edit</button></div>' +
       "</div>";
   }).join("") + "</div>";
   bindAll("[data-edit-liab]", "data-edit-liab", openLiab);
+  bindCells("liabList");
 }
 
 function checkFor(liabilityId) {
@@ -2566,14 +2568,20 @@ $("periodPick").onchange = renderMonth;
 //
 // Structural edits (add an account, rename a holding) stay in the existing dialogs. Only
 // the reading is new; editing figures in place is P5.4b.
+function sheetPeriod() {
+  var picked = $("sheetPeriod").value;
+  return WM.isPeriod(picked) ? picked : WM.currentPeriod();
+}
+
 function rowFigures(subjectId) {
-  var period = WM.currentPeriod();
+  var period = sheetPeriod();
   var now = WM.basePositionFor(state, subjectId, period);
-  if (!now) return { value: "—", valueStale: false, change: "", total: 0 };
+  if (!now) return { value: "—", raw: "", valueStale: false, change: "", total: 0 };
 
   if (now.convertible === false) {
     return {
       value: esc(WM.formatAmount(now.nativeBalance)) + " " + esc(now.currency),
+      raw: "", foreign: true,
       valueStale: false,
       change: '<span class="srow-warn">no rate</span>',
       total: 0
@@ -2597,12 +2605,102 @@ function rowFigures(subjectId) {
         esc(fmtRM(Math.abs(delta))) + pct + "</span>";
     }
   }
-  return { value: esc(fmtRM(now.balance)), valueStale: now.stale, change: change, total: now.balance };
+  return {
+    value: esc(fmtRM(now.balance)), raw: WM.formatAmount(now.balance),
+    valueStale: now.stale, change: change, total: now.balance
+  };
 }
 
-function valueCell(fig) {
-  return '<div class="srow-v">' + fig.value +
+// A cell is editable when its figure is a plain recorded balance. A unit-based holding
+// is not: its balance is units x price, so typing a ringgit figure over it would be
+// overwritten by the unit maths and read as a silent rejection. Those rows stay text and
+// say where to edit them.
+function valueCell(fig, kind, id, name, editable) {
+  // A foreign figure with no rate is shown in its own currency and left read-only: a cell
+  // that formats ringgit would invite a ringgit figure over a USD balance.
+  if (!editable || fig.foreign) {
+    return '<div class="srow-v">' + fig.value +
+      (fig.valueStale ? '<span class="stale-mark" title="carried forward">*</span>' : "") + "</div>";
+  }
+  // A carried-forward figure goes in as a placeholder, never as a value: it is last
+  // month's number, and leaving the cell must not record it as this month's entry.
+  var recorded = fig.valueStale ? "" : fig.raw;
+  var placeholder = fig.valueStale ? fig.value.replace(/<[^>]*>/g, "") + " carried" : "—";
+  return '<div class="srow-v"><input class="cellin" type="text" inputmode="decimal" ' +
+    'id="cell_' + esc(id) + '" data-cell="' + esc(id) + '" data-cellkind="' + esc(kind) + '" ' +
+    'value="' + esc(recorded) + '" placeholder="' + esc(placeholder) + '" ' +
+    'aria-label="' + esc(name) + ", " + esc(monthLabel(sheetPeriod())) + '">' +
     (fig.valueStale ? '<span class="stale-mark" title="carried forward">*</span>' : "") + "</div>";
+}
+
+// Saving redraws the sheet, which replaces the very element a click was travelling to, so
+// the cell being clicked into is remembered before the blur that saves the old one and
+// focused again afterwards. Without this, every click from one cell to the next drops
+// focus to the body and the sheet cannot be filled in without the mouse twice over.
+var pendingCell = null;
+document.addEventListener('mousedown', function (e) {
+  var el = e.target && e.target.closest ? e.target.closest('.cellin') : null;
+  pendingCell = el ? el.id : null;
+}, true);
+
+// Saving one cell must not touch the rest of the month's entry. applyMonth blanks every
+// amount field it is not given, so the contribution, withdrawal and income already
+// recorded for this month are read back and passed through untouched. Losing them to a
+// balance edit would be exactly the silent data loss this app exists to avoid.
+function saveCell(el) {
+  var id = el.getAttribute("data-cell");
+  var kind = el.getAttribute("data-cellkind");
+  var period = sheetPeriod();
+  var existing = WM.valuationFor(state, id, period);
+  var row = { balance: el.value };
+  row[kind] = id;
+  ["contribution", "withdrawal", "income"].forEach(function (f) {
+    row[f] = existing ? existing[f] : null;
+  });
+
+  var res = WM.applyMonth(state, period, [row], deviceId);
+  if (res.errors.length) {
+    el.classList.add("badfield");
+    toast("That is not a number — " + esc(el.value));
+    return false;
+  }
+  el.classList.remove("badfield");
+  if (!res.created && !res.updated && !res.deleted) return true;
+  commit();
+  if (pendingCell) {
+    var target = document.getElementById(pendingCell);
+    pendingCell = null;
+    if (target) { target.focus(); target.select(); }
+  }
+  return true;
+}
+
+// Enter and Tab move down the sheet the way a spreadsheet does. commit() re-renders, so
+// the next cell is found again by id after the save rather than held across it.
+function bindCells(rootId) {
+  var cells = Array.prototype.slice.call(document.querySelectorAll("#" + rootId + " .cellin"));
+  cells.forEach(function (el, i) {
+    el.setAttribute("data-was", el.value);
+    el.onblur = function () {
+      if (el.value === el.getAttribute("data-was")) return;
+      saveCell(el);
+    };
+    el.onkeydown = function (e) {
+      if (e.key === "Escape") {
+        el.value = el.getAttribute("data-was");
+        el.classList.remove("badfield");
+        el.blur();
+        return;
+      }
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      var next = cells[i + 1];
+      var nextId = next ? next.id : null;
+      if (el.value !== el.getAttribute("data-was") && !saveCell(el)) return;
+      var target = nextId ? document.getElementById(nextId) : null;
+      if (target) { target.focus(); target.select(); }
+    };
+  });
 }
 
 function renderTree() {
@@ -2677,7 +2775,7 @@ function renderTree() {
           (detail ? '<div class="srow-d">' + detail + "</div>" : "") +
           "</div>" +
           '<div class="srow-c">' + fig.change + "</div>" +
-          valueCell(fig) +
+          valueCell(fig, "holdingId", h.id, h.name, !h.unitBased) +
           '<div class="srow-a"><button class="btn sm" data-edit-hold="' + esc(h.id) + '">Edit</button></div>' +
           "</div>";
       }).join("");
@@ -2723,6 +2821,7 @@ function renderTree() {
   bindAll("[data-edit-hold]", "data-edit-hold", openHold);
   bindAll("[data-add-acct]", "data-add-acct", function (id) { openAcct(null, id); });
   bindAll("[data-add-hold]", "data-add-hold", function (id) { openHold(null, id); });
+  bindCells("tree");
 }
 
 
@@ -3008,6 +3107,8 @@ $("realTerms").onchange = renderForecast;
 
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
+// The sheet reads and writes one month at a time; changing it redraws the three lists.
+$("sheetPeriod").onchange = function () { renderTree(); renderAssets(); renderLiabilities(); };
 $("allocDim").onchange = renderAllocation;
 
 Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
@@ -3024,6 +3125,7 @@ Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
 
 function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
+  if (!$("sheetPeriod").value) $("sheetPeriod").value = WM.currentPeriod();
   renderWorth();
   renderForecast();
   renderRelief();
