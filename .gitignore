@@ -10,3 +10,7 @@ node_modules/
 /exports/
 *.env
 .env*
+
+# Verification screenshots the browser checks drop in the repo root. Scoped to the root
+# so a real asset under assets/ or img/ is still tracked.
+/*.png
