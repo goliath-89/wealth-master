@@ -3427,7 +3427,16 @@ $("realTerms").onchange = renderForecast;
 
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
-wire("rowPanelClose", closeRowPanel);
+// Closing the panel is delegated rather than bound to the button, so it keeps working
+// however the panel is redrawn, and a click outside it closes it too. A panel that can
+// trap the reader is worse than no panel.
+document.addEventListener("click", function (e) {
+  if (!openRow) return;
+  if (e.target.closest("#rowPanelClose")) { closeRowPanel(); return; }
+  if (e.target.closest("#rowPanel") || e.target.closest("[data-row-id]")) return;
+  if (e.target.closest(".modal-bg")) return;
+  closeRowPanel();
+});
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && openRow) closeRowPanel();
 });

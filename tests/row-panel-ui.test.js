@@ -234,3 +234,58 @@ test("a name typed into a holding cannot inject markup through the panel (SEC-7)
   assert.equal(doc.getElementById("rowPanelTitle").textContent, "<img src=x onerror=alert(1)>");
   assert.deepEqual(app.consoleErrors, []);
 });
+
+// The close button was reported dead in a browser holding a stale copy of app.js against
+// fresh markup. Binding it directly meant one missed wiring left the panel with no way
+// out; delegation keeps it working however the panel is drawn, and a click outside is a
+// second way out.
+test("closing is delegated, so it works even after the panel is redrawn", function () {
+  var f = seeded();
+  var h = f.holding("Savings");
+  record(f, { holdingId: h.id, period: period(f, 0), balance: 40000 });
+
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+  open(doc, h.id);
+
+  // Redraw the panel the way a save does, then close it.
+  var cell = doc.getElementById("cell_" + h.id);
+  cell.value = "41000";
+  cell.dispatchEvent(new app.window.FocusEvent("blur"));
+  assert.equal(panel(doc).hidden, false);
+
+  doc.getElementById("rowPanelClose").dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
+  assert.equal(panel(doc).hidden, true);
+});
+
+test("a click outside the panel closes it, a click inside does not", function () {
+  var f = seeded();
+  var h = f.holding("Savings");
+  record(f, { holdingId: h.id, period: period(f, 0), balance: 40000 });
+
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+  open(doc, h.id);
+
+  doc.getElementById("rowPanelBody").dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
+  assert.equal(panel(doc).hidden, false, "reading the panel does not dismiss it");
+
+  doc.getElementById("worthKpis").dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
+  assert.equal(panel(doc).hidden, true);
+});
+
+test("opening one row straight from another swaps the panel rather than closing it", function () {
+  var f = seeded();
+  var a = f.holding("Savings");
+  var b = f.holding("ASB", { class: "investment" });
+  record(f, { holdingId: a.id, period: period(f, 0), balance: 40000 });
+  record(f, { holdingId: b.id, period: period(f, 0), balance: 20000 });
+
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+  open(doc, a.id);
+  doc.getElementById("open_" + b.id).dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
+
+  assert.equal(panel(doc).hidden, false);
+  assert.equal(doc.getElementById("rowPanelTitle").textContent, "ASB");
+});
