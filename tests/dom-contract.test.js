@@ -36,7 +36,7 @@ var STATIC_IDS = [
   "kpis", "l_basis", "l_name", "l_principal", "l_rate", "l_tenure", "l_type", "liabDelete",
   "liabErr", "liabList", "liabSave", "loanList", "migrateFile", "monthActions", "monthErr", "monthRows",
   "monthSummary", "navAssets", "navDebts", "navNet", "periodPick", "pidmNote", "pidmWrap", "realTerms", "reliefList",
-  "resetEpfSplitBtn", "resilience", "reviewCancelBtn", "reviewConfirmBtn", "reviewKeepNotes",
+  "resetEpfSplitBtn", "resilience", "rowPanel", "rowPanelBody", "rowPanelClose", "rowPanelTitle", "reviewCancelBtn", "reviewConfirmBtn", "reviewKeepNotes",
   "reviewNoneBtn", "reviewProblems", "reviewRows", "reviewSec", "reviewSummary", "s_acquired",
   "s_class", "s_cost", "s_liab", "s_name", "s_value", "saveEpfRateBtn", "saveEpfSplitBtn",
   "saveLimitsBtn", "saveMonthBtn", "saveSettingsBtn", "sc_contrib", "sc_inv", "scenarioErr",
@@ -54,10 +54,14 @@ var RENDERED_IDS = {
   connectNewBtn: 'id="connectNewBtn"',
   connectExistingBtn: 'id="connectExistingBtn"',
   firstInstBtn: 'id="firstInstBtn"',
+  panelRecord: 'id="panelRecord"',
+  panelSchedule: 'id="panelSchedule"',
   "epf_": 'id="epf_',
   "lim_": 'id="lim_',
   "mrow_": 'id="mrow_',
   "m_": 'id="m_',
+  // One per openable sheet row (P5.6).
+  "open_": 'id="open_',
   // One per editable sheet cell (P5.4b).
   "cell_": 'id="cell_'
 };
@@ -67,7 +71,7 @@ var RENDERED_IDS = {
 var ATTRIBUTE_HOOKS = [
   "data-v", "data-sched", "data-simpay", "data-simsettle", "data-edit-inst", "data-edit-acct",
   "data-edit-hold", "data-edit-asset", "data-edit-liab", "data-edit-goal", "data-edit-scenario",
-  "data-imp"
+  "data-imp", "data-row-id", "data-row-kind"
 ];
 var CLASS_HOOKS = [
   "tab", "view", "stale-mark", "yield", "up", "dn", "wline", "irow", "ibadge", "lg", "lgt", "tag"
