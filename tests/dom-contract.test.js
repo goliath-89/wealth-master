@@ -24,7 +24,7 @@ var appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
 var STATIC_IDS = [
   "a_arch", "a_name", "acctSave", "addAssetBtn", "addGoalBtn", "addInstBtn", "addLiabBtn",
   "allocChart", "allocDim", "allocLegend", "assetDelete", "assetErr", "assetList", "assetSave",
-  "assumptions", "c_balance", "c_instalment", "c_interest", "c_period", "c_result",
+  "assumptions", "c_balance", "c_instalment", "c_interest", "c_period", "c_result", "catStrip",
   "dec_amount", "dec_growth", "decisionResult", "epfBalances", "epfContrib", "epfDividend",
   "epfRate", "epfSec", "epfSplitFields", "epfSplitResult", "epfYear", "feesList", "feesWrap",
   "fileLabel", "fileNote", "fileRow", "forecastChart", "forecastKpis", "forecastLegend",
@@ -44,7 +44,7 @@ var STATIC_IDS = [
   "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetStatus", "showArchived",
   "snackMsg", "staleNote", "staleWrap", "strat_extra", "strategyResult", "strategyWrap",
   "taxYear", "themeBtn", "topPeriod", "tree", "undoImportBtn", "v-forecast", "v-loans", "v-tax", "v-worth",
-  "worthChart", "worthKpis", "worthLines"
+  "worthChart", "worthHero", "worthKpis", "worthLines"
 ];
 
 // Built by app.js at render time. Each entry is the literal the render code must still

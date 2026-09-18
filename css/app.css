@@ -120,14 +120,35 @@ svg.chart{max-height:380px}
   display:flex;align-items:center;justify-content:center;transition:.15s;
 }
 .iconbtn:hover{background:var(--surface2);color:var(--tx)}
+/* ---- headline and category strip (P5.2) ---- */
+.hero{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 36px;margin-bottom:16px}
+.hero-v{
+  font-size:clamp(34px,6vw,54px);font-weight:300;letter-spacing:-.02em;line-height:1.05;
+  font-variant-numeric:tabular-nums;
+}
+.hero-v .stale-mark{font-size:.42em;vertical-align:super;margin-left:2px}
+.hero-ds{display:flex;gap:28px;flex-wrap:wrap;padding-bottom:6px}
+.hero-dk{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3)}
+.hero-dv{font-size:15px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
+.hero-dv.up{color:var(--good)}
+.hero-dv.dn{color:var(--bad)}
+.hero-dv.neu{color:var(--tx3)}
+.strip{
+  display:flex;gap:26px;border-top:.5px solid var(--line);border-bottom:.5px solid var(--line);
+  padding:2px 0;overflow-x:auto;scrollbar-width:none;
+}
+.strip::-webkit-scrollbar{display:none}
+.strip-i{padding:12px 0;white-space:nowrap}
+.strip-k{font-size:12.5px;color:var(--tx2)}
+.strip-v{font-size:15px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
 .sec{margin:26px 0}
 .sec-h{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
 .sec-t{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx2)}
 .card{background:var(--surface);border:.5px solid var(--line);border-radius:var(--r2);padding:16px 18px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .kpi{background:var(--surface);border:.5px solid var(--line);border-radius:var(--r);padding:13px 15px}
 .kpi .k{font-size:11.5px;color:var(--tx2);font-weight:500}
-.kpi .v{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
+.kpi .v{font-size:clamp(16px,2.2vw,22px);font-weight:600;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .note{font-size:12.5px;color:var(--tx3);line-height:1.65}
 .hr{height:.5px;background:var(--line);border:none;margin:16px 0}
 button,input{font-family:inherit;font-size:14px}
