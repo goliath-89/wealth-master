@@ -2121,7 +2121,7 @@ function renderAssets() {
     return;
   }
   var period = WM.currentPeriod();
-  $("assetList").innerHTML = list.map(function (a) {
+  $("assetList").innerHTML = '<div class="sheet">' + list.map(function (a) {
     var eq = WM.equityFor(state, a.id, period);
     var equityLine = "";
     if (eq && eq.liabilityName) {
@@ -2130,15 +2130,18 @@ function renderAssets() {
       equityLine = '<div class="prev">Equity ' + esc(fmtRM(eq.equity)) + " — " +
         esc(fmtRM(eq.value)) + " less " + esc(fmtRM(eq.owed)) + " owed on " + esc(eq.liabilityName) + "</div>";
     }
-    return '<div class="acct"><div class="acct-h">' +
-      '<span class="acct-n">' + esc(a.name) + "</span>" +
+    var fig = rowFigures(a.id);
+    return '<div class="srow"><div class="srow-n">' +
+      '<span class="srow-t">' + esc(a.name) + "</span>" +
       '<span class="tag">' + esc(a.class || "—") + "</span>" +
       (a.liquid ? "" : '<span class="tag">Illiquid</span>') +
-      '<div class="spacer"></div>' +
-      '<span class="wv">' + (eq ? esc(fmtRM(eq.value)) + (eq.stale ? '<span class="stale-mark">*</span>' : "") : "—") + "</span>" +
-      '<button class="btn sm" data-edit-asset="' + esc(a.id) + '">Edit</button>' +
-      "</div>" + equityLine + "</div>";
-  }).join("");
+      equityLine +
+      "</div>" +
+      '<div class="srow-c">' + fig.change + "</div>" +
+      valueCell(fig) +
+      '<div class="srow-a"><button class="btn sm" data-edit-asset="' + esc(a.id) + '">Edit</button></div>' +
+      "</div>";
+  }).join("") + "</div>";
   bindAll("[data-edit-asset]", "data-edit-asset", openAsset);
 }
 
@@ -2225,18 +2228,18 @@ function renderLiabilities() {
       '<div class="es">Add a mortgage, car loan or card to include debt in net worth.</div></div></div>';
     return;
   }
-  var period = WM.currentPeriod();
-  $("liabList").innerHTML = list.map(function (l) {
-    var pos = WM.positionFor(state, l.id, period);
-    return '<div class="acct"><div class="acct-h">' +
-      '<span class="acct-n">' + esc(l.name) + "</span>" +
+  $("liabList").innerHTML = '<div class="sheet">' + list.map(function (l) {
+    var fig = rowFigures(l.id);
+    return '<div class="srow"><div class="srow-n">' +
+      '<span class="srow-t">' + esc(l.name) + "</span>" +
       '<span class="tag">' + esc(l.type || "—") + "</span>" +
       '<span class="tag">' + (l.rateBasis === "flat" ? "Flat rate" : "Reducing") + "</span>" +
-      '<div class="spacer"></div>' +
-      '<span class="wv">' + (pos ? esc(fmtRM(pos.balance)) + (pos.stale ? '<span class="stale-mark">*</span>' : "") : "—") + "</span>" +
-      '<button class="btn sm" data-edit-liab="' + esc(l.id) + '">Edit</button>' +
-      "</div></div>";
-  }).join("");
+      "</div>" +
+      '<div class="srow-c">' + fig.change + "</div>" +
+      valueCell(fig) +
+      '<div class="srow-a"><button class="btn sm" data-edit-liab="' + esc(l.id) + '">Edit</button></div>' +
+      "</div>";
+  }).join("") + "</div>";
   bindAll("[data-edit-liab]", "data-edit-liab", openLiab);
 }
 
@@ -2557,6 +2560,51 @@ $("periodPick").onchange = renderMonth;
 
 // ---- accounts view ---------------------------------------------------------
 
+// The holdings sheet (P5.4a). Rows carry what a spreadsheet row carries: what it is,
+// what it is worth, and what it did last month. Sections are institutions, sub-headers are
+// accounts, and every figure is the same one net worth uses — nothing is recomputed here.
+//
+// Structural edits (add an account, rename a holding) stay in the existing dialogs. Only
+// the reading is new; editing figures in place is P5.4b.
+function rowFigures(subjectId) {
+  var period = WM.currentPeriod();
+  var now = WM.basePositionFor(state, subjectId, period);
+  if (!now) return { value: "—", valueStale: false, change: "", total: 0 };
+
+  if (now.convertible === false) {
+    return {
+      value: esc(WM.formatAmount(now.nativeBalance)) + " " + esc(now.currency),
+      valueStale: false,
+      change: '<span class="srow-warn">no rate</span>',
+      total: 0
+    };
+  }
+
+  var prev = WM.basePositionFor(state, subjectId, WM.prevPeriod(period));
+  var change = "";
+  // A carried-forward figure has not moved because nothing was recorded, not because the
+  // holding stood still. Reporting that as a RM 0 change would be a claim about the month.
+  if (now.stale) {
+    change = '<span class="srow-warn">not updated</span>';
+  } else if (prev && prev.convertible !== false) {
+    var delta = now.balance - prev.balance;
+    if (delta === 0) {
+      change = '<span class="srow-flat">no change</span>';
+    } else {
+      var up = delta > 0;
+      var pct = prev.balance ? " (" + esc((Math.abs(delta) / Math.abs(prev.balance) * 100).toFixed(1)) + "%)" : "";
+      change = '<span class="yield ' + (up ? "up" : "dn") + '">' + (up ? "▲ +" : "▼ −") +
+        esc(fmtRM(Math.abs(delta))) + pct + "</span>";
+    }
+  }
+  return { value: esc(fmtRM(now.balance)), valueStale: now.stale, change: change, total: now.balance };
+}
+
+function valueCell(fig) {
+  return '<div class="srow-v">' + fig.value +
+    (fig.valueStale ? '<span class="stale-mark" title="carried forward">*</span>' : "") + "</div>";
+}
+
 function renderTree() {
   var E = WM;
   var institutions = E.live(state.institutions);
@@ -2575,6 +2623,7 @@ function renderTree() {
     var accounts = E.accountsFor(state, inst.id).filter(function (a) {
       return showArchived || !a.archived;
     });
+    var instTotal = 0, instHasFigure = false;
 
     var acctHtml = accounts.map(function (a) {
       var holdings = E.holdingsFor(state, a.id);
@@ -2583,8 +2632,13 @@ function renderTree() {
       if (a.shariah) tags += '<span class="tag">Shariah</span> ';
       if (!a.liquid) tags += '<span class="tag">Illiquid</span> ';
       if (a.archived) tags += '<span class="tag mute">Archived</span> ';
+      var acctTotal = 0, acctHasFigure = false;
 
       var holdHtml = holdings.map(function (h) {
+        var fig = rowFigures(h.id);
+        acctTotal += fig.total;
+        if (fig.value !== "—") acctHasFigure = true;
+
         // Realised beside advertised — the Fund Desk principle (G5). A fund quoting
         // 4.5% that actually paid 3.9% should say so on the same line.
         var n = WM.netOfFees(state, h);
@@ -2614,16 +2668,24 @@ function renderTree() {
             }
           }
         }
+        var detail = yieldHtml + unitHtml;
 
-        return '<div class="hold"><span>' + esc(h.name) + '</span>' +
+        return '<div class="srow"><div class="srow-n">' +
+          '<span class="srow-t">' + esc(h.name) + "</span>" +
           '<span class="tag">' + esc(h.instrumentType || "—") + "</span>" +
-          (h.rate ? '<span>' + esc(String(h.rate)) + "% advertised</span>" : "") +
-          yieldHtml + unitHtml +
-          '<div class="spacer"></div>' +
-          '<button class="btn sm" data-edit-hold="' + esc(h.id) + '">Edit</button></div>';
+          (h.rate ? '<span class="srow-sub">' + esc(String(h.rate)) + "% advertised</span>" : "") +
+          (detail ? '<div class="srow-d">' + detail + "</div>" : "") +
+          "</div>" +
+          '<div class="srow-c">' + fig.change + "</div>" +
+          valueCell(fig) +
+          '<div class="srow-a"><button class="btn sm" data-edit-hold="' + esc(h.id) + '">Edit</button></div>' +
+          "</div>";
       }).join("");
 
-      return '<div class="acct"><div class="acct-h">' +
+      instTotal += acctTotal;
+      if (acctHasFigure) instHasFigure = true;
+
+      return '<div class="sheet-acct"><div class="sheet-sub">' +
         '<span class="acct-n">' + esc(a.name) + "</span>" +
         '<span class="tag">' + esc(a.class) + "</span>" +
         (a.currency && a.currency !== "MYR" ? '<span class="tag">' + esc(a.currency) + "</span>" : "") +
@@ -2631,18 +2693,26 @@ function renderTree() {
         '<div class="spacer"></div>' +
         '<button class="btn sm" data-edit-acct="' + esc(a.id) + '">Edit</button>' +
         '<button class="btn sm" data-add-hold="' + esc(a.id) + '">+ Holding</button>' +
-        "</div>" + holdHtml + "</div>";
+        "</div>" +
+        (holdHtml || '<div class="srow"><div class="srow-n"><span class="srow-sub">No holdings yet.</span></div></div>') +
+        (acctHasFigure ? '<div class="srow sub-total"><div class="srow-n"><span class="srow-sub">' +
+          esc(a.name) + " total</span></div><div class=\"srow-c\"></div>" +
+          '<div class="srow-v">' + esc(fmtRM(acctTotal)) + '</div><div class="srow-a"></div></div>' : "") +
+        "</div>";
     }).join("");
 
-    return '<div class="inst"><div class="inst-h">' +
+    return '<div class="sheet"><div class="sheet-h">' +
       '<span class="inst-n">' + esc(inst.name) + "</span>" +
       '<span class="tag">' + esc(inst.type || "—") + "</span>" +
       (inst.pidmMember ? '<span class="tag good">PIDM member</span>' : "") +
       '<div class="spacer"></div>' +
+      (instHasFigure ? '<span class="sheet-total">' + esc(fmtRM(instTotal)) + "</span>" : "") +
       '<button class="btn sm" data-edit-inst="' + esc(inst.id) + '">Edit</button>' +
       '<button class="btn sm" data-add-acct="' + esc(inst.id) + '">+ Account</button>' +
       "</div>" +
-      (acctHtml || '<p class="note" style="margin-bottom:8px">No accounts yet.</p>') +
+      '<div class="srow sheet-cols"><div class="srow-n">Holding</div>' +
+      '<div class="srow-c">1 month</div><div class="srow-v">Value</div><div class="srow-a"></div></div>' +
+      (acctHtml || '<div class="srow"><div class="srow-n"><span class="srow-sub">No accounts yet.</span></div></div>') +
       "</div>";
   }).join("");
 
@@ -2654,6 +2724,7 @@ function renderTree() {
   bindAll("[data-add-acct]", "data-add-acct", function (id) { openAcct(null, id); });
   bindAll("[data-add-hold]", "data-add-hold", function (id) { openHold(null, id); });
 }
+
 
 function bindAll(selector, attr, fn) {
   Array.prototype.forEach.call(document.querySelectorAll(selector), function (el) {
