@@ -2421,8 +2421,7 @@ function openAsset(id) {
   $("s_acquired").value = r && r.acquiredOn ? String(r.acquiredOn).slice(0, 7) : period;
   $("s_cost").value = r ? WM.formatAmount(r.cost) : "";
 
-  var pos = r ? WM.positionFor(state, r.id, period) : null;
-  $("s_value").value = pos ? WM.formatAmount(pos.balance) : "";
+  fillBalanceField($("s_value"), $("s_valueMonth"), r ? r.id : null, sheetPeriod());
 
   $("s_liab").innerHTML = '<option value="">Not financed</option>' +
     options(WM.live(state.liabilities), r ? r.linkedLiabilityId : null);
@@ -2468,12 +2467,12 @@ $("assetSave").onclick = function () {
       assetId: saved.id, period: acquired, balance: cost.value, note: "purchase cost"
     }, deviceId);
   }
-  if (value.value !== null) {
-    var period = WM.currentPeriod();
-    var existing = WM.positionFor(state, saved.id, period);
-    if (!existing || existing.balance !== value.value || existing.stale) {
-      WM.upsertValuation(state, { assetId: saved.id, period: period, balance: value.value }, deviceId);
-    }
+  // The month the sheet is on, not always the current one, and the rest of that month's
+  // entry is kept.
+  var assetBal = writeBalanceIfChanged($("s_value"), "assetId", saved.id, sheetPeriod());
+  if (assetBal.errors.length) {
+    showErrors("assetErr", ["Value must be a number"]);
+    return;
   }
 
   closeModal("assetModal");
@@ -2579,6 +2578,7 @@ function openLiab(id) {
   $("l_rate").value = r && r.ratePct ? r.ratePct : "";
   $("l_tenure").value = r && r.tenureMonths ? r.tenureMonths : "";
   $("l_instalment").value = r ? WM.formatAmount(r.instalment) : "";
+  fillBalanceField($("l_balance"), $("l_balanceMonth"), r ? r.id : null, sheetPeriod());
   $("liabDelete").style.display = r ? "" : "none";
   showErrors("liabErr", []);
   openModal("liabModal");
@@ -2914,18 +2914,50 @@ document.addEventListener('mousedown', function (e) {
 // amount field it is not given, so the contribution, withdrawal and income already
 // recorded for this month are read back and passed through untouched. Losing them to a
 // balance edit would be exactly the silent data loss this app exists to avoid.
-function saveCell(el) {
-  var id = el.getAttribute("data-cell");
-  var kind = el.getAttribute("data-cellkind");
-  var period = sheetPeriod();
+function writeBalance(kind, id, raw, period) {
   var existing = WM.valuationFor(state, id, period);
-  var row = { balance: el.value };
+  var row = { balance: raw };
   row[kind] = id;
   ["contribution", "withdrawal", "income"].forEach(function (f) {
     row[f] = existing ? existing[f] : null;
   });
+  return WM.applyMonth(state, period, [row], deviceId);
+}
 
-  var res = WM.applyMonth(state, period, [row], deviceId);
+// What a dialog should show in its balance field: the figure recorded for this month, or
+// nothing at all when the figure on screen is carried from an earlier one. Offering a
+// carried figure as the field's value would record last month's number on the next save.
+function fillBalanceField(el, monthEl, id, period) {
+  var f = id ? balanceFieldFor(id, period) : { value: "", placeholder: "—" };
+  el.value = f.value;
+  el.placeholder = f.placeholder;
+  el.setAttribute("data-was", f.value);
+  if (monthEl) monthEl.textContent = "for " + monthLabel(period);
+}
+
+function writeBalanceIfChanged(el, kind, id, period) {
+  if (el.value === (el.getAttribute("data-was") || "")) return { errors: [] };
+  return writeBalance(kind, id, el.value, period);
+}
+
+function balanceFieldFor(id, period) {
+  var recorded = WM.valuationFor(state, id, period);
+  if (recorded && recorded.balance !== null && recorded.balance !== undefined) {
+    return { value: WM.formatAmount(recorded.balance), placeholder: "—" };
+  }
+  var carried = WM.basePositionFor(state, id, period);
+  return {
+    value: "",
+    placeholder: carried && carried.convertible !== false && carried.stale
+      ? WM.formatAmount(carried.balance) + " carried" : "—"
+  };
+}
+
+function saveCell(el) {
+  var id = el.getAttribute("data-cell");
+  var kind = el.getAttribute("data-cellkind");
+  var period = sheetPeriod();
+  var res = writeBalance(kind, id, el.value, period);
   if (res.errors.length) {
     el.classList.add("badfield");
     toast("That is not a number — " + esc(el.value));
@@ -3209,6 +3241,10 @@ function openHold(id, accountId) {
     WM.ACCOUNTS.map(function (a) {
       return '<option value="' + esc(a.key) + '"' + (r && r.epfAccount === a.key ? " selected" : "") + ">" + esc(a.label) + "</option>";
     }).join("");
+  fillBalanceField($("h_balance"), $("h_balanceMonth"), r ? r.id : null, sheetPeriod());
+  // A unit-based holding's balance is units times price, so it is not typed in ringgit
+  // here any more than it is in the sheet.
+  $("h_balance").disabled = r ? !!r.unitBased : false;
   $("h_units").checked = r ? !!r.unitBased : false;
   $("h_fixed").value = r && r.fixedPrice ? String(r.fixedPrice) : "";
   $("holdDelete").style.display = r ? "" : "none";
@@ -3234,7 +3270,16 @@ $("holdSave").onclick = function () {
   var holdErrors = WM.validate("holdings", rec, state);
   if (fixedPrice.error) holdErrors = holdErrors.concat(["Fixed unit price must be a number"]);
   if (showErrors("holdErr", holdErrors)) return;
-  WM.upsert(state, "holdings", rec, deviceId);
+  var savedHolding = WM.upsert(state, "holdings", rec, deviceId);
+
+  if (!rec.unitBased) {
+    var balRes = writeBalanceIfChanged($("h_balance"), "holdingId", savedHolding.id, sheetPeriod());
+    if (balRes.errors.length) {
+      showErrors("holdErr", ["Balance must be a number"]);
+      return;
+    }
+  }
+
   closeModal("holdModal");
   commit();
   toast(editing.hold ? "Holding updated" : "Holding added");
@@ -3293,6 +3338,12 @@ $("liabSave").onclick = function () {
   if (showErrors("liabErr", errors)) return;
 
   var savedLiab = WM.upsert(state, "liabilities", rec, deviceId);
+
+  var liabBal = writeBalanceIfChanged($("l_balance"), "liabilityId", savedLiab.id, sheetPeriod());
+  if (liabBal.errors.length) {
+    showErrors("liabErr", ["Outstanding balance must be a number"]);
+    return;
+  }
 
   // The statement check is the owner's own record of what the bank said. Saved as data,
   // never folded back into the calculation.
@@ -3376,7 +3427,16 @@ $("realTerms").onchange = renderForecast;
 
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
-wire("rowPanelClose", closeRowPanel);
+// Closing the panel is delegated rather than bound to the button, so it keeps working
+// however the panel is redrawn, and a click outside it closes it too. A panel that can
+// trap the reader is worse than no panel.
+document.addEventListener("click", function (e) {
+  if (!openRow) return;
+  if (e.target.closest("#rowPanelClose")) { closeRowPanel(); return; }
+  if (e.target.closest("#rowPanel") || e.target.closest("[data-row-id]")) return;
+  if (e.target.closest(".modal-bg")) return;
+  closeRowPanel();
+});
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && openRow) closeRowPanel();
 });
