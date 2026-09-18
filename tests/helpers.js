@@ -59,6 +59,7 @@ function loadLib(window) {
   delete require.cache[require.resolve("../js/xlsx.js")];
   delete require.cache[require.resolve("../js/sheet-import.js")];
   delete require.cache[require.resolve("../js/fx.js")];
+  delete require.cache[require.resolve("../js/ui-shell.js")];
   var schema = require("../js/schema.js");
   var store = require("../js/store.js");
   var migrateFundDesk = require("../js/migrate-funddesk.js");
@@ -80,9 +81,10 @@ function loadLib(window) {
   var xlsx = require("../js/xlsx.js");
   var sheetImport = require("../js/sheet-import.js");
   var fx = require("../js/fx.js");
+  var uiShell = require("../js/ui-shell.js");
   return {
     schema: schema, store: store, migrateFundDesk: migrateFundDesk,
-    importGuard: importGuard, csv: csv, entities: entities, valuations: valuations, networth: networth, loans: loans, analytics: analytics, forecast: forecast, decisions: decisions, goals: goals, strategy: strategy, relief: relief, units: units, epf: epf, series: series, xlsx: xlsx, sheetImport: sheetImport, fx: fx
+    importGuard: importGuard, csv: csv, entities: entities, valuations: valuations, networth: networth, loans: loans, analytics: analytics, forecast: forecast, decisions: decisions, goals: goals, strategy: strategy, relief: relief, units: units, epf: epf, series: series, xlsx: xlsx, sheetImport: sheetImport, fx: fx, uiShell: uiShell
   };
 }
 
@@ -119,7 +121,7 @@ function loadApp(seedState, beforeApp) {
   };
 
   ["js/schema.js", "js/store.js", "js/migrate-funddesk.js", "js/import-guard.js",
-   "js/csv.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/strategy.js", "js/relief.js", "js/units.js", "js/epf.js", "js/series.js", "js/xlsx.js", "js/sheet-import.js", "js/fx.js", "js/app.js"].forEach(function (rel) {
+   "js/csv.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/strategy.js", "js/relief.js", "js/units.js", "js/epf.js", "js/series.js", "js/xlsx.js", "js/sheet-import.js", "js/fx.js", "js/ui-shell.js", "js/app.js"].forEach(function (rel) {
     if (rel === "js/app.js" && typeof beforeApp === "function") beforeApp(window);
     var code = fs.readFileSync(path.join(ROOT, rel), "utf8");
     window.eval(code);

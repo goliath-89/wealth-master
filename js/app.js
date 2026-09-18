@@ -342,7 +342,8 @@ function shortRM(n) {
 
 // ---- forecast --------------------------------------------------------------
 
-var SCENARIO_COLOURS = { Conservative: "#e0a02a", Base: "#3987e5", Optimistic: "#1fae7f" };
+// Theme-aware: CSS custom properties defined per theme in css/app.css.
+var SCENARIO_COLOURS = { Conservative: "var(--warn)", Base: "var(--accent)", Optimistic: "var(--c5)" };
 
 function scenarioColour(name, i) {
   return SCENARIO_COLOURS[name] || sliceColour(i);
@@ -1527,9 +1528,10 @@ function renderIncome() {
 // Categorical palette, reused across the app. Chosen to stay distinguishable in both
 // themes and for the commonest colour-vision deficiencies — but the legend always
 // carries the label and figure too, so colour is never the only signal (NFR-9).
+// Values are CSS custom properties (--c1 to --c10), so each theme supplies its own contrast.
 var SLICE_COLOURS = [
-  "#3987e5", "#1fae7f", "#e07a3c", "#dfa62a", "#dd7ba4",
-  "#5ac26a", "#8d80e8", "#e06767", "#4bc0d0", "#b58bd4"
+  "var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)",
+  "var(--c6)", "var(--c7)", "var(--c8)", "var(--c9)", "var(--c10)"
 ];
 
 function sliceColour(i) { return SLICE_COLOURS[i % SLICE_COLOURS.length]; }
@@ -2911,6 +2913,7 @@ function render() {
   renderAssets();
   renderStrategy();
   renderLoans();
+  WM.renderNavTotals(state, document);
 
   var counts = [
     ["Institutions", liveCount(state.institutions)],
