@@ -2033,6 +2033,33 @@ function renderAllocation() {
     "Allocation by " + alloc.label);
 }
 
+// The date the last debt clears, which the payoff engine already knows and no screen was
+// showing. Paying the minimums is the honest baseline: it is what happens if nothing
+// changes. The saving from paying more is shown beside it, so the card answers "when" and
+// "how much sooner" in one line each.
+function debtFreeHtml() {
+  var base = WM.run(state, "minimums", 0);
+  if (!base || !base.monthsToDebtFree) return "";
+
+  var when = WM.currentPeriod();
+  for (var i = 0; i < base.monthsToDebtFree; i++) when = WM.nextPeriod(when);
+
+  var extra = WM.parseAmount($("strat_extra") ? $("strat_extra").value : "");
+  var sooner = "";
+  if (extra.value) {
+    var cmp = WM.compare(state, extra.value);
+    if (cmp && cmp.monthsSavedVsMinimums > 0) {
+      sooner = cmp.monthsSavedVsMinimums + (cmp.monthsSavedVsMinimums === 1 ? " month" : " months") +
+        " sooner with " + fmtRM(extra.value) + " extra";
+    }
+  }
+
+  return '<div class="kpi"><div class="k">Debt-free</div><div class="v">' +
+    esc(monthLabel(when)) + "</div>" +
+    '<div class="d ' + (sooner ? "up" : "neu") + '">' +
+    esc(sooner || base.monthsToDebtFree + " months at current instalments") + "</div></div>";
+}
+
 // Runway and savings rate share a home on the net worth screen: both answer "how solid
 // is this", which is a different question from "how much is it".
 function renderResilience() {
@@ -2080,7 +2107,7 @@ function renderResilience() {
       '<div class="d dn">' + esc(avgPct.toFixed(2)) + "% a year on " + esc(fmtRM(charged)) + "</div></div>";
   }
 
-  $("resilience").innerHTML = runHtml + saveHtml + feeHtml;
+  $("resilience").innerHTML = runHtml + saveHtml + feeHtml + debtFreeHtml();
 }
 
 // Which holdings the fees are actually coming from, dearest first — a total with no
@@ -3529,7 +3556,7 @@ $("scenarioSave").onclick = function () {
 };
 
 $("horizon").onchange = function () { renderForecast(); renderDecision(); };
-$("strat_extra").onchange = renderStrategy;
+$("strat_extra").onchange = function () { renderStrategy(); renderResilience(); };
 $("dec_loan").onchange = renderDecision;
 $("dec_amount").onchange = renderDecision;
 $("dec_growth").onchange = renderDecision;

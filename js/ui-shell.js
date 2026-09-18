@@ -41,6 +41,17 @@
     return MONTHS[parseInt(parts[1], 10) - 1] + " " + parts[0];
   }
 
+  // FR-1.9: what has no figure yet for the month being reported. Counted from the same
+  // positions the totals use, so "3 due" and the carried-forward asterisks always agree.
+  // A subject that has never been recorded at all is not "due" — it is not yet in use.
+  function dueThisMonth(state, period) {
+    var p = period || val.currentPeriod();
+    var pos = nw.positionAt(state, p);
+    var names = pos.lines.filter(function (line) { return line.stale; })
+      .map(function (line) { return line.name; });
+    return { count: names.length, names: names, period: p };
+  }
+
   // What the shell shows, as data — so the rules above are testable without a DOM.
   function navTotals(state, through) {
     var pts = nw.series(state, through || val.currentPeriod());
@@ -50,6 +61,7 @@
     return {
       period: now.period,
       periodLabel: periodName(now.period),
+      due: dueThisMonth(state, now.period).count,
       partial: now.partial,
       net: navAmount(now.net) + mark,
       assets: navAmount(now.assets) + mark,
@@ -70,7 +82,21 @@
     put("navAssets", t ? t.assets : "", staleNote);
     put("navDebts", t ? t.debts : "", staleNote);
     put("topPeriod", t ? "As of " + t.periodLabel + (t.partial ? "*" : "") : "", staleNote);
+
+    // The month-end nudge lives on the item that fixes it, not in a message box.
+    var due = doc.getElementById("navDue");
+    if (due) {
+      due.textContent = t && t.due ? t.due + " due" : "";
+      due.hidden = !(t && t.due);
+      if (t && t.due) {
+        due.setAttribute("title", t.due + (t.due === 1 ? " figure has" : " figures have") +
+          " no entry for " + t.periodLabel + " yet");
+      }
+    }
   }
 
-  return { navAmount: navAmount, navTotals: navTotals, renderNavTotals: renderNavTotals };
+  return {
+    navAmount: navAmount, navTotals: navTotals, renderNavTotals: renderNavTotals,
+    dueThisMonth: dueThisMonth
+  };
 });
