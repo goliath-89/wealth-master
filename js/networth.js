@@ -9,13 +9,14 @@
 // current. The staleness travels with the number so the UI can never lose it.
 (function (root, factory) {
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = factory(require("./schema.js"), require("./valuations.js"), require("./entities.js"));
+    module.exports = factory(require("./schema.js"), require("./valuations.js"),
+      require("./entities.js"), require("./fx.js"));
   } else {
     root.WM = root.WM || {};
-    var exported = factory(root.WM, root.WM, root.WM);
+    var exported = factory(root.WM, root.WM, root.WM, root.WM);
     for (var k in exported) root.WM[k] = exported[k];
   }
-})(typeof self !== "undefined" ? self : this, function (schema, val, ent) {
+})(typeof self !== "undefined" ? self : this, function (schema, val, ent, fx) {
 
   // Whole months between two YYYY-MM periods.
   function monthsBetween(from, to) {
@@ -56,20 +57,39 @@
   function positionAt(state, period) {
     var lines = [];
     var assets = 0, liabilities = 0, liquid = 0, illiquid = 0, staleCount = 0;
+    // Foreign holdings with no rate to convert them. They are left out of every total
+    // rather than added at face value, and named so the omission is visible (FR-9.6).
+    var unconverted = [];
+    var fxStaleCount = 0;
 
     contributingHoldings(state).forEach(function (h) {
       var pos = positionFor(state, h.id, period);
       if (!pos) return;
       var acct = ent.byId(state.accounts, h.accountId);
-      assets += pos.balance;
-      if (acct && acct.liquid) liquid += pos.balance; else illiquid += pos.balance;
-      if (pos.stale) staleCount++;
-      lines.push({
+      var money = fx.toBase(state, h, acct, period, pos.balance);
+
+      var line = {
         kind: "holding", id: h.id, name: h.name,
         accountName: acct ? acct.name : "", liquid: !!(acct && acct.liquid),
-        balance: pos.balance, stale: pos.stale,
-        sourcePeriod: pos.sourcePeriod, monthsStale: pos.monthsStale
-      });
+        balance: money.amount, stale: pos.stale,
+        sourcePeriod: pos.sourcePeriod, monthsStale: pos.monthsStale,
+        // The native figure travels with the converted one, so a screen can show what was
+        // actually recorded rather than only the ringgit it became.
+        currency: money.currency, nativeBalance: money.native,
+        fxRate: money.rate, fxStale: money.fxStale, fxSourcePeriod: money.fxSourcePeriod,
+        convertible: money.convertible
+      };
+      lines.push(line);
+
+      if (!money.convertible) {
+        unconverted.push({ id: h.id, name: h.name, currency: money.currency,
+          native: money.native });
+        return;
+      }
+      if (money.fxStale) fxStaleCount++;
+      assets += money.amount;
+      if (acct && acct.liquid) liquid += money.amount; else illiquid += money.amount;
+      if (pos.stale) staleCount++;
     });
 
     ent.live(state.assets).forEach(function (a) {
@@ -110,6 +130,11 @@
       // Partial means at least one figure is carried forward, so the total is real but
       // resting on older data. The UI must say so rather than presenting it as current.
       partial: staleCount > 0,
+      // Holdings left out because no rate converts them, and holdings converted at a rate
+      // carried from an earlier month. Both make the total less certain than it looks, so
+      // both travel with it rather than being discoverable only by recomputing.
+      unconverted: unconverted,
+      fxStaleCount: fxStaleCount,
       lines: lines
     };
   }

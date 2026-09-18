@@ -124,6 +124,17 @@
         if (h.epfAccount === undefined) h.epfAccount = null;
       });
       return o;
+    },
+
+    // v10 -> v11: a valuation can record the rate that converts its balance into MYR
+    // (FR-9.6). Existing rows are set to null explicitly rather than left undefined, and
+    // null means "no rate recorded" — deliberately not 1, which would silently value a
+    // foreign balance at face value, the mistake this field exists to end.
+    10: function (o) {
+      (o.valuations || []).forEach(function (v) {
+        if (v.fxRate === undefined) v.fxRate = null;
+      });
+      return o;
     }
   };
 

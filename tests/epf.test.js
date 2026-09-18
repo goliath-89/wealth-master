@@ -293,7 +293,9 @@ test("migrating from v9 gives every holding an explicit null EPF tag", function 
     holdings: [{ id: "h1", name: "EPF", accountId: "a1", fixedPrice: null, reliefCategory: "epf" }]
   };
   var migrated = s.l.store.migrate(old);
-  assert.equal(migrated.schemaVersion, 10);
+  // Not pinned to a number: this test is about the EPF field surviving the ladder, and
+  // every later schema bump would otherwise have to edit it.
+  assert.equal(migrated.schemaVersion, s.l.schema.SCHEMA_VERSION);
   assert.equal(migrated.holdings[0].epfAccount, null);
   assert.ok("epfAccount" in migrated.holdings[0], "the field must exist for CSV export");
 });
