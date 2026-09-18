@@ -80,8 +80,10 @@
     // Seed each subject at its current balance, tagged with the growth key that applies.
     var lines = [];
     nw.contributingHoldings(state).forEach(function (h) {
-      var pos = nw.positionFor(state, h.id, start);
-      if (!pos) return;
+      // Ringgit, and a holding with no rate is left out — the same omission net worth
+      // makes, so a forecast starts from the figure the owner was shown (FR-9.6).
+      var pos = nw.basePositionFor(state, h.id, start);
+      if (!pos || !pos.convertible) return;
       var acct = ent.byId(state.accounts, h.accountId);
       lines.push({
         kind: "holding", id: h.id, balance: pos.balance,

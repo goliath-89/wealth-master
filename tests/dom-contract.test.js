@@ -28,6 +28,7 @@ var STATIC_IDS = [
   "dec_amount", "dec_growth", "decisionResult", "epfBalances", "epfContrib", "epfDividend",
   "epfRate", "epfSec", "epfSplitFields", "epfSplitResult", "epfYear", "feesList", "feesWrap",
   "fileLabel", "fileNote", "fileRow", "forecastChart", "forecastKpis", "forecastLegend",
+  "fxNote", "fxWrap",
   "g_date", "g_name", "g_target", "goalDelete", "goalErr", "goalList", "goalSave", "h_epf",
   "h_fee", "h_fixed", "h_relief", "h_units", "holdDelete", "holdErr", "holdSave", "horizon",
   "i_name", "i_type", "importCancel", "importConfirm", "importModal", "importModalBody",
@@ -68,6 +69,17 @@ var ATTRIBUTE_HOOKS = [
 ];
 var CLASS_HOOKS = [
   "tab", "view", "stale-mark", "yield", "up", "dn", "wline", "irow", "ibadge", "lg", "lgt", "tag"
+];
+
+// Hidden in index.html with an inline style="display:none" and revealed from app.js by
+// setting el.style.display. Tests assert on el.style.display, so replacing the inline
+// style with a class would render correctly and fail the suite. If a redesign wants these
+// class-driven, it changes the JS and the tests in the same commit. (Folded in from
+// docs/ui-hooks-from-functional.md §3, which this file replaces.)
+var TOGGLED_BY_DISPLAY = [
+  "acctDelete", "assetDelete", "feesWrap", "fxWrap", "goalDelete", "holdDelete",
+  "incomeWrap", "instDelete", "liabDelete", "pidmWrap", "reviewSec", "seriesWrap",
+  "staleWrap", "strategyWrap", "undoImportBtn"
 ];
 
 test("every statically declared hook is present in index.html", function () {
@@ -131,4 +143,11 @@ test("every id a test drives is registered in this contract", function () {
   });
   assert.deepEqual(Array.from(unregistered), [],
     "tests drive these ids but tests/dom-contract.test.js does not list them");
+});
+
+test("elements the app shows and hides still carry an inline display style", function () {
+  TOGGLED_BY_DISPLAY.forEach(function (id) {
+    var re = new RegExp('id="' + id + '"[^>]*style="display:none"');
+    assert.match(html, re, "#" + id + " must stay inline-hidden, not class-hidden");
+  });
 });

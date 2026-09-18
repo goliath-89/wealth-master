@@ -68,8 +68,11 @@
     nw.contributingHoldings(state).forEach(function (h) {
       var fee = Number(h.feePct) || 0;
       if (!fee) return;
-      var pos = nw.positionFor(state, h.id, period);
-      if (!pos) return;
+      // Ringgit, not the account's own currency: a 1.5% fee on USD 10,000 is RM 630 at
+      // 4.20, not RM 150. A holding with no rate for the month is left out rather than
+      // charged as though its balance were ringgit.
+      var pos = nw.basePositionFor(state, h.id, period);
+      if (!pos || !pos.convertible) return;
       var annual = pos.balance * fee / 100;
       total += annual;
       lines.push({ id: h.id, name: h.name, feePct: fee, balance: pos.balance, annualFee: annual });
@@ -95,8 +98,10 @@
     var total = 0;
 
     nw.contributingHoldings(state).forEach(function (h) {
-      var pos = nw.positionFor(state, h.id, period);
-      if (!pos || pos.balance <= 0) return;
+      // Converted, so a slice is comparable with the others and with net worth. Counting
+      // a foreign balance at face value made the donut disagree with the total above it.
+      var pos = nw.basePositionFor(state, h.id, period);
+      if (!pos || !pos.convertible || pos.balance <= 0) return;
       var account = ent.byId(state.accounts, h.accountId);
       var institution = account ? ent.byId(state.institutions, account.institutionId) : null;
       var key = dim.of({ account: account, institution: institution, liquid: account && account.liquid });
@@ -133,8 +138,11 @@
     nw.contributingHoldings(state).forEach(function (h) {
       var account = ent.byId(state.accounts, h.accountId);
       if (!account || !account.pidmProtected) return;
-      var pos = nw.positionFor(state, h.id, period);
-      if (!pos) return;
+      // The PIDM limit is RM 250,000, so the balance compared against it must be in
+      // ringgit. A foreign deposit with no rate is left out — reporting it as protected
+      // or over the limit would both be guesses.
+      var pos = nw.basePositionFor(state, h.id, period);
+      if (!pos || !pos.convertible) return;
       var inst = ent.byId(state.institutions, account.institutionId);
       var name = inst ? inst.name : "Unknown";
       byInstitution[name] = (byInstitution[name] || 0) + pos.balance;

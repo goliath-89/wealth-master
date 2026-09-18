@@ -39,8 +39,9 @@
         var acct = ent.byId(state.accounts, h.accountId);
         if (!acct || !acct.liquid) return;
       }
-      var pos = nw.positionFor(state, h.id, period);
-      if (pos) total += pos.balance;
+      // Ringgit: a goal's target is in ringgit, so progress towards it must be too.
+      var pos = nw.basePositionFor(state, h.id, period);
+      if (pos && pos.convertible) total += pos.balance;
     });
     return round(total);
   }

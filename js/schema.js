@@ -10,7 +10,7 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
 
-  var SCHEMA_VERSION = 10;
+  var SCHEMA_VERSION = 11;
 
   var ENTITY_LISTS = [
     "institutions", "accounts", "holdings", "valuations",
@@ -111,11 +111,16 @@
   // time for the same reason holdings do: a single static figure would apply today's
   // number to every past month, retroactively rewriting history. Amounts default to
   // null — not recorded, which is not the same as zero.
+  //
+  // fxRate converts this month's balance into MYR: one unit of the account's currency is
+  // worth fxRate ringgit. It sits on the valuation rather than the account because a rate
+  // is a fact about a month — revaluing 2023 at today's rate would rewrite history.
+  // Null means no rate recorded, which is not a rate of 1 (FR-9.6).
   function newValuation(deviceId) {
     return stamp({
       id: uid(), holdingId: null, liabilityId: null, assetId: null, period: "",
       balance: null, units: null, unitPrice: null,
-      contribution: null, withdrawal: null, income: null, note: ""
+      contribution: null, withdrawal: null, income: null, note: "", fxRate: null
     }, deviceId);
   }
   // No currentValue field: an asset's worth lives in its valuations, like everything

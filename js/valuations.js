@@ -16,6 +16,12 @@
 })(typeof self !== "undefined" ? self : this, function (schema) {
 
   var AMOUNT_FIELDS = ["balance", "contribution", "withdrawal", "income"];
+  // Carried like the unit fields rather than the amount fields: only written when the
+  // caller supplies one, so saving a month through the entry grid cannot wipe a rate
+  // recorded elsewhere. upsertValuation dropping units and unitPrice entirely is what
+  // made unit-based holdings unrecordable in P1.15; a dropped rate would silently strand
+  // every foreign balance the same way.
+  var RATE_FIELDS = ["fxRate"];
 
   // Carried through but not offered as month-entry fields: a unit trust's units and
   // price come from a statement or an import, not from the monthly grid. They were
@@ -112,8 +118,11 @@
     return Object.keys(seen).sort();
   }
 
+  // A rate counts towards a month being recorded. On its own it converts nothing, but
+  // treating a rate-only entry as empty would delete the valuation the owner just typed
+  // it into — and a rate entered ahead of the balance is a reasonable way to work.
   function isEmptyEntry(entry) {
-    var noAmounts = AMOUNT_FIELDS.concat(UNIT_FIELDS).every(function (f) {
+    var noAmounts = AMOUNT_FIELDS.concat(UNIT_FIELDS).concat(RATE_FIELDS).every(function (f) {
       return entry[f] === null || entry[f] === undefined;
     });
     return noAmounts && !(entry.note && String(entry.note).trim());
@@ -152,6 +161,9 @@
     UNIT_FIELDS.forEach(function (f) {
       if (entry[f] !== undefined) target[f] = entry[f];
     });
+    RATE_FIELDS.forEach(function (f) {
+      if (entry[f] !== undefined) target[f] = entry[f];
+    });
     target.note = entry.note || "";
     target.deleted = false;
     target.updatedAt = schema.nowIso();
@@ -182,11 +194,25 @@
         if (parsed.error) bad = bad || f;
         entry[f] = parsed.value;
       });
+      // A rate is a plain multiplier, not a sum of money, so it is parsed as a number
+      // rather than through parseAmount — "RM 4.20" is not a meaningful exchange rate.
+      // Left undefined when the row carries no rate field, so upsertValuation leaves any
+      // stored rate alone.
+      if (row.fxRate !== undefined) {
+        var raw = String(row.fxRate === null ? "" : row.fxRate).trim();
+        if (raw === "") {
+          entry.fxRate = null;
+        } else {
+          var n = Number(raw);
+          if (isNaN(n) || n <= 0) bad = bad || "fxRate";
+          else entry.fxRate = n;
+        }
+      }
       if (bad) {
         result.errors.push({
           holdingId: row.holdingId || row.liabilityId || row.assetId,
           field: bad,
-          message: "Not a number"
+          message: bad === "fxRate" ? "Not a rate" : "Not a number"
         });
         return;
       }
@@ -201,6 +227,7 @@
   return {
     AMOUNT_FIELDS: AMOUNT_FIELDS,
     UNIT_FIELDS: UNIT_FIELDS,
+    RATE_FIELDS: RATE_FIELDS,
     parseAmount: parseAmount,
     formatAmount: formatAmount,
     rawAmount: rawAmount,
