@@ -289,3 +289,16 @@ test("opening one row straight from another swaps the panel rather than closing 
   assert.equal(panel(doc).hidden, false);
   assert.equal(doc.getElementById("rowPanelTitle").textContent, "ASB");
 });
+
+// A .drawer is display:flex, which overrides the hidden attribute unless the closed state
+// is spelled out — the panel sat empty on every screen until it was.
+test("the closed panel is not drawn at all", function () {
+  var fsMod = require("fs");
+  var pathMod = require("path");
+  var css = fsMod.readFileSync(pathMod.join(__dirname, "..", "css", "app.css"), "utf8");
+  assert.match(css, /\.drawer\[hidden\]\{display:none\}/);
+
+  var doc = helpers.loadApp().window.document;
+  assert.equal(doc.getElementById("rowPanel").hidden, true);
+  assert.equal(doc.getElementById("rowPanelBody").innerHTML, "");
+});

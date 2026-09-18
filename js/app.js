@@ -291,6 +291,112 @@ function renderWorth() {
 
 
 
+
+// ---- recap (P6) ------------------------------------------------------------
+//
+// The past as a decomposition rather than a period: what you put in, what the market did,
+// what the house was revalued at, what debt you cleared. Every figure comes from
+// WM.recap, which reconciles to the change in net worth by construction.
+function recapWindow() {
+  var periods = WM.periodsInState(state);
+  if (!periods.length) return null;
+  var latest = periods[periods.length - 1];
+  var earliest = periods[0];
+  var from = $("recapFrom").value, to = $("recapTo").value;
+  if (!WM.isPeriod(from) || !WM.isPeriod(to)) {
+    // Twelve months back by default, or the whole history when it is shorter.
+    to = latest;
+    from = to;
+    for (var i = 0; i < 12; i++) from = WM.prevPeriod(from);
+    // Never open on a window that starts before anything was recorded: it would count a
+    // whole portfolio as if it had appeared from nothing.
+    if (WM.monthsBetween(from, earliest) > 0) from = earliest;
+    $("recapFrom").value = from;
+    $("recapTo").value = to;
+  }
+  return { from: $("recapFrom").value, to: $("recapTo").value };
+}
+
+function recapBar(value, widest) {
+  var pct = widest ? Math.abs(value) / widest * 100 : 0;
+  var up = value >= 0;
+  return '<div class="rbar"><div class="rbar-f ' + (up ? "up" : "dn") + '" ' +
+    'style="width:' + pct.toFixed(1) + '%"></div></div>';
+}
+
+function renderRecap() {
+  var w = recapWindow();
+  if (!w) {
+    $("recapSummary").innerHTML = '<div class="card"><div class="empty">' +
+      '<div class="et">Nothing to compare yet</div>' +
+      '<div class="es">Record a couple of months and this will show what moved your net worth ' +
+      "between them.</div></div></div>";
+    $("recapParts").innerHTML = "";
+    $("recapLines").innerHTML = "";
+    return;
+  }
+
+  var r = WM.recap(state, w.from, w.to);
+  if (!r) {
+    $("recapSummary").innerHTML = '<div class="warnbox">Pick two different months, earliest first.</div>';
+    $("recapParts").innerHTML = "";
+    $("recapLines").innerHTML = "";
+    return;
+  }
+
+  var up = r.change >= 0;
+  $("recapSummary").innerHTML = '<div class="card">' +
+    '<div class="p-sub">' + esc(monthLabel(r.from)) + " to " + esc(monthLabel(r.to)) +
+      " · " + r.months + (r.months === 1 ? " month" : " months") + "</div>" +
+    '<div class="hero-v" style="font-size:clamp(28px,4.4vw,44px)">' + (up ? "+" : "−") +
+      esc(fmtRM(Math.abs(r.change))) + (r.partial ? '<span class="stale-mark">*</span>' : "") + "</div>" +
+    '<div class="p-change">' + esc(fmtRM(r.startNet)) + " → " + esc(fmtRM(r.endNet)) +
+      (r.pct === null ? "" : " · " + (up ? "+" : "−") + esc(Math.abs(r.pct).toFixed(1)) + "%") + "</div>" +
+    (r.partial
+      ? '<p class="note" style="margin-top:10px">* One or both ends rest on figures carried ' +
+        "forward from an earlier month, so the comparison is less certain than it looks.</p>"
+      : "") +
+    "</div>";
+
+  // A part that moved nothing is noise: "Withdrawals +RM 0.00" says less than its own
+  // absence. They come back the moment they carry a figure.
+  var moved = r.parts.filter(function (p) { return p.value !== 0; });
+  var widest = moved.reduce(function (m, p) { return Math.max(m, Math.abs(p.value)); }, 0);
+  $("recapParts").innerHTML = moved.map(function (p) {
+    return '<div class="rrow"><div class="rrow-k">' + esc(p.label) +
+      (p.residual ? ' <span class="tag">residual</span>' : "") + "</div>" +
+      '<div class="rrow-b">' + recapBar(p.value, widest) + "</div>" +
+      '<div class="rrow-v ' + (p.value >= 0 ? "up" : "dn") + '">' +
+      (p.value >= 0 ? "+" : "−") + esc(fmtRM(Math.abs(p.value))) + "</div></div>";
+  }).join("") +
+    '<div class="rrow rrow-total"><div class="rrow-k">Change in net worth</div>' +
+    '<div class="rrow-b"></div><div class="rrow-v">' + (up ? "+" : "−") +
+    esc(fmtRM(Math.abs(r.change))) + "</div></div>";
+
+  var lines = r.holdings.map(function (h) {
+    var why = [];
+    if (h.contributions) why.push("in " + fmtRM(h.contributions));
+    if (h.withdrawals) why.push("out " + fmtRM(h.withdrawals));
+    if (h.income) why.push("earned " + fmtRM(h.income));
+    if (h.market) why.push((h.market >= 0 ? "market +" : "market −") + fmtRM(Math.abs(h.market)));
+    return { name: h.name, change: h.change, why: why.join(" · ") };
+  }).concat(r.assets.map(function (a) {
+    return { name: a.name, change: a.change, why: "revalued" };
+  })).concat(r.debts.map(function (d) {
+    return { name: d.name, change: d.paidDown, why: d.paidDown >= 0 ? "paid down" : "borrowed" };
+  })).filter(function (l) { return l.change !== 0 || l.why; })
+    .sort(function (a, b) { return Math.abs(b.change) - Math.abs(a.change); });
+
+  $("recapLines").innerHTML = lines.length
+    ? lines.map(function (l) {
+      return '<div class="wline"><div class="wn">' + esc(l.name) +
+        '<div class="ws">' + esc(l.why) + "</div></div>" +
+        '<div class="wv ' + (l.change >= 0 ? "up" : "dn") + '">' +
+        (l.change >= 0 ? "+" : "−") + esc(fmtRM(Math.abs(l.change))) + "</div></div>";
+    }).join("")
+    : '<p class="note">Nothing changed between these two months.</p>';
+}
+
 // ---- row detail (P5.6) -----------------------------------------------------
 //
 // A row answers "what is it worth". The panel answers the rest without leaving the
@@ -3431,6 +3537,8 @@ $("realTerms").onchange = renderForecast;
 
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
+$("recapFrom").onchange = renderRecap;
+$("recapTo").onchange = renderRecap;
 // Closing the panel is delegated rather than bound to the button, so it keeps working
 // however the panel is redrawn, and a click outside it closes it too. A panel that can
 // trap the reader is worse than no panel.
@@ -3483,6 +3591,7 @@ function render() {
   renderAssets();
   renderStrategy();
   renderLoans();
+  renderRecap();
   WM.renderNavTotals(state, document);
   renderRowPanel();
 

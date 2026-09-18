@@ -37,6 +37,7 @@ var STATIC_IDS = [
   "kpis", "l_balance", "l_balanceMonth", "l_basis", "l_name", "l_principal", "l_rate", "l_tenure", "l_type", "liabDelete",
   "liabErr", "liabList", "liabSave", "loanList", "migrateFile", "monthActions", "monthErr", "monthRows",
   "monthSummary", "navAssets", "navDebts", "navNet", "periodPick", "pidmNote", "pidmWrap", "realTerms", "reliefList",
+  "recapFrom", "recapLines", "recapParts", "recapSummary", "recapTo",
   "resetEpfSplitBtn", "resilience", "rowPanel", "rowPanelBody", "rowPanelClose", "rowPanelTitle", "reviewCancelBtn", "reviewConfirmBtn", "reviewKeepNotes",
   "reviewNoneBtn", "reviewProblems", "reviewRows", "reviewSec", "reviewSummary", "s_acquired",
   "s_class", "s_cost", "s_liab", "s_name", "s_value", "s_valueMonth", "saveEpfRateBtn", "saveEpfSplitBtn",
@@ -44,7 +45,7 @@ var STATIC_IDS = [
   "scenarioSave", "seriesChart", "seriesLegend", "seriesMetric", "seriesNote", "seriesWrap",
   "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetPeriod", "sheetStatus", "showArchived",
   "snackMsg", "staleNote", "staleWrap", "strat_extra", "strategyResult", "strategyWrap",
-  "taxYear", "themeBtn", "topPeriod", "tree", "undoImportBtn", "v-data", "v-forecast", "v-loans", "v-month", "v-tax", "v-worth",
+  "taxYear", "themeBtn", "topPeriod", "tree", "undoImportBtn", "v-data", "v-forecast", "v-loans", "v-month", "v-recap", "v-tax", "v-worth",
   "worthChart", "worthHero", "worthKpis", "worthLines"
 ];
 

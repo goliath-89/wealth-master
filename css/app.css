@@ -366,6 +366,28 @@ tbody tr.paid td{color:var(--tx3)}
 }
 .snack.on{transform:translateX(-50%) translateY(0)}
 
+/* ---- recap (P6) ---- */
+.rrow{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:.5px solid var(--line);font-size:13.5px}
+.rrow:last-child{border-bottom:none}
+.rrow-k{width:190px;flex-shrink:0}
+.rrow-b{flex:1;min-width:60px}
+.rrow-v{width:150px;text-align:right;font-variant-numeric:tabular-nums;flex-shrink:0}
+.rrow-v.up{color:var(--good)}
+.rrow-v.dn{color:var(--bad)}
+.rrow-total{border-top:.5px solid var(--line2);font-weight:600;margin-top:4px}
+.rbar{height:8px;background:var(--surface3);border-radius:99px;overflow:hidden}
+.rbar-f{height:100%;border-radius:99px}
+.rbar-f.up{background:var(--accent)}
+.rbar-f.dn{background:var(--bad)}
+.wline .wv.up{color:var(--good)}
+.wline .wv.dn{color:var(--bad)}
+@media(max-width:639px){
+  .rrow{flex-wrap:wrap;gap:6px 12px}
+  .rrow-k{width:auto;flex:1}
+  .rrow-v{width:auto;margin-left:auto}
+  .rrow-b{flex-basis:100%;order:3}
+}
+
 /* ---- row detail panel (P5.6) ---- */
 .srow-t{
   font:inherit;font-weight:500;color:var(--tx);background:none;border:none;padding:4px 0;
@@ -374,6 +396,9 @@ tbody tr.paid td{color:var(--tx3)}
 .srow-t:hover{border-bottom-color:var(--line2)}
 .srow-t:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 .srow{cursor:default}
+/* display:flex would override the hidden attribute, which is how an empty panel came
+   to sit on every screen. The closed state wins. */
+.drawer[hidden]{display:none}
 .drawer{
   position:fixed;z-index:90;background:var(--surface);border:.5px solid var(--line);
   display:flex;flex-direction:column;overflow-y:auto;
