@@ -77,7 +77,7 @@ header .brand{white-space:nowrap}
 .side::-webkit-scrollbar{display:none}
 .side-brand,.side-sep,.tab-amt{display:none}
 .tab{
-  flex:1 1 0;min-width:44px;min-height:58px;padding:6px 2px 4px;border:none;background:transparent;
+  position:relative;flex:1 1 0;min-width:44px;min-height:58px;padding:6px 2px 4px;border:none;background:transparent;
   color:var(--tx2);font-family:inherit;font-size:10.5px;font-weight:500;cursor:pointer;white-space:nowrap;overflow:hidden;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   border-top:2px solid transparent;transition:.15s;
@@ -365,6 +365,18 @@ tbody tr.paid td{color:var(--tx3)}
   box-shadow:0 10px 30px rgba(0,0,0,.45);max-width:calc(100vw - 32px);
 }
 .snack.on{transform:translateX(-50%) translateY(0)}
+
+.tab-due{
+  margin-left:auto;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;
+  background:var(--warn-tint);color:var(--warn);white-space:nowrap;
+}
+@media(max-width:1023px){
+  /* On the phone bar there is no room for words: a dot on the icon does the same job. */
+  .tab-due{
+    position:absolute;margin:0;top:6px;right:calc(50% - 16px);width:8px;height:8px;
+    padding:0;font-size:0;background:var(--warn);
+  }
+}
 
 /* ---- recap (P6) ---- */
 .rrow{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:.5px solid var(--line);font-size:13.5px}
