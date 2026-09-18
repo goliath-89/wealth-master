@@ -41,7 +41,7 @@ var STATIC_IDS = [
   "s_class", "s_cost", "s_liab", "s_name", "s_value", "saveEpfRateBtn", "saveEpfSplitBtn",
   "saveLimitsBtn", "saveMonthBtn", "saveSettingsBtn", "sc_contrib", "sc_inv", "scenarioErr",
   "scenarioSave", "seriesChart", "seriesLegend", "seriesMetric", "seriesNote", "seriesWrap",
-  "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetStatus", "showArchived",
+  "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetPeriod", "sheetStatus", "showArchived",
   "snackMsg", "staleNote", "staleWrap", "strat_extra", "strategyResult", "strategyWrap",
   "taxYear", "themeBtn", "topPeriod", "tree", "undoImportBtn", "v-forecast", "v-loans", "v-tax", "v-worth",
   "worthChart", "worthHero", "worthKpis", "worthLines"
@@ -57,7 +57,9 @@ var RENDERED_IDS = {
   "epf_": 'id="epf_',
   "lim_": 'id="lim_',
   "mrow_": 'id="mrow_',
-  "m_": 'id="m_'
+  "m_": 'id="m_',
+  // One per editable sheet cell (P5.4b).
+  "cell_": 'id="cell_'
 };
 
 // Data attributes and classes that tests select by. Each must still be produced by

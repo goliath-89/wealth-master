@@ -185,6 +185,45 @@ button,input{font-family:inherit;font-size:14px}
 .losslist{margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--tx2);line-height:1.7}
 .view{display:none}
 .view.on{display:block}
+/* ---- holdings sheet (P5.4a) ---- */
+.sheet{background:var(--surface);border:.5px solid var(--line);border-radius:var(--r2);margin-bottom:14px;overflow:hidden}
+.sheet-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:.5px solid var(--line)}
+.sheet-total{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;margin-right:4px}
+.sheet-sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border-bottom:.5px solid var(--line)}
+.srow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:.5px solid var(--line);font-size:13.5px}
+.sheet-acct:last-child .srow:last-child{border-bottom:none}
+.srow-n{flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.srow-t{font-weight:500}
+.srow-sub{color:var(--tx3);font-size:12px}
+.srow-d{flex-basis:100%;display:flex;gap:10px;flex-wrap:wrap}
+.srow-c{width:170px;text-align:right;font-size:12.5px;flex-shrink:0}
+.srow-v{width:150px;text-align:right;font-variant-numeric:tabular-nums;font-weight:500;flex-shrink:0}
+.srow-a{width:78px;display:flex;justify-content:flex-end;flex-shrink:0}
+.srow-warn{color:var(--warn)}
+/* An editable cell reads as a figure until it is touched, then as a field. */
+.cellin{
+  width:100%;min-height:44px;padding:4px 8px;text-align:right;font-size:13.5px;font-weight:500;
+  font-variant-numeric:tabular-nums;border:.5px solid transparent;border-radius:8px;
+  background:transparent;color:var(--tx);appearance:none;transition:.12s;
+}
+.cellin:hover{border-color:var(--line2);background:var(--surface2)}
+.cellin:focus{border-color:var(--accent);background:var(--surface2);box-shadow:0 0 0 3px var(--accent-tint);outline:none}
+.cellin::placeholder{color:var(--tx3);font-weight:400}
+.cellin.badfield{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-tint)}
+.srow-v .cellin{margin:-4px 0}
+.srow-flat{color:var(--tx3)}
+.srow.sheet-cols{
+  padding:8px 14px;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--tx3);background:var(--surface2);
+}
+.srow.sub-total{background:var(--surface2);font-weight:600}
+/* A phone has no room for a change column beside the value: it moves under the name. */
+@media(max-width:639px){
+  .srow{flex-wrap:wrap}
+  .srow-c{width:auto;order:3;flex-basis:100%;text-align:left}
+  .srow-v{width:auto;margin-left:auto}
+  .srow.sheet-cols .srow-c{display:none}
+}
 .inst{margin-bottom:14px}
 .inst-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
 .inst-n{font-size:14.5px;font-weight:600}

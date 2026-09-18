@@ -2121,7 +2121,7 @@ function renderAssets() {
     return;
   }
   var period = WM.currentPeriod();
-  $("assetList").innerHTML = list.map(function (a) {
+  $("assetList").innerHTML = '<div class="sheet">' + list.map(function (a) {
     var eq = WM.equityFor(state, a.id, period);
     var equityLine = "";
     if (eq && eq.liabilityName) {
@@ -2130,16 +2130,20 @@ function renderAssets() {
       equityLine = '<div class="prev">Equity ' + esc(fmtRM(eq.equity)) + " — " +
         esc(fmtRM(eq.value)) + " less " + esc(fmtRM(eq.owed)) + " owed on " + esc(eq.liabilityName) + "</div>";
     }
-    return '<div class="acct"><div class="acct-h">' +
-      '<span class="acct-n">' + esc(a.name) + "</span>" +
+    var fig = rowFigures(a.id);
+    return '<div class="srow"><div class="srow-n">' +
+      '<span class="srow-t">' + esc(a.name) + "</span>" +
       '<span class="tag">' + esc(a.class || "—") + "</span>" +
       (a.liquid ? "" : '<span class="tag">Illiquid</span>') +
-      '<div class="spacer"></div>' +
-      '<span class="wv">' + (eq ? esc(fmtRM(eq.value)) + (eq.stale ? '<span class="stale-mark">*</span>' : "") : "—") + "</span>" +
-      '<button class="btn sm" data-edit-asset="' + esc(a.id) + '">Edit</button>' +
-      "</div>" + equityLine + "</div>";
-  }).join("");
+      equityLine +
+      "</div>" +
+      '<div class="srow-c">' + fig.change + "</div>" +
+      valueCell(fig, "assetId", a.id, a.name, true) +
+      '<div class="srow-a"><button class="btn sm" data-edit-asset="' + esc(a.id) + '">Edit</button></div>' +
+      "</div>";
+  }).join("") + "</div>";
   bindAll("[data-edit-asset]", "data-edit-asset", openAsset);
+  bindCells("assetList");
 }
 
 function openAsset(id) {
@@ -2225,19 +2229,20 @@ function renderLiabilities() {
       '<div class="es">Add a mortgage, car loan or card to include debt in net worth.</div></div></div>';
     return;
   }
-  var period = WM.currentPeriod();
-  $("liabList").innerHTML = list.map(function (l) {
-    var pos = WM.positionFor(state, l.id, period);
-    return '<div class="acct"><div class="acct-h">' +
-      '<span class="acct-n">' + esc(l.name) + "</span>" +
+  $("liabList").innerHTML = '<div class="sheet">' + list.map(function (l) {
+    var fig = rowFigures(l.id);
+    return '<div class="srow"><div class="srow-n">' +
+      '<span class="srow-t">' + esc(l.name) + "</span>" +
       '<span class="tag">' + esc(l.type || "—") + "</span>" +
       '<span class="tag">' + (l.rateBasis === "flat" ? "Flat rate" : "Reducing") + "</span>" +
-      '<div class="spacer"></div>' +
-      '<span class="wv">' + (pos ? esc(fmtRM(pos.balance)) + (pos.stale ? '<span class="stale-mark">*</span>' : "") : "—") + "</span>" +
-      '<button class="btn sm" data-edit-liab="' + esc(l.id) + '">Edit</button>' +
-      "</div></div>";
-  }).join("");
+      "</div>" +
+      '<div class="srow-c">' + fig.change + "</div>" +
+      valueCell(fig, "liabilityId", l.id, l.name, true) +
+      '<div class="srow-a"><button class="btn sm" data-edit-liab="' + esc(l.id) + '">Edit</button></div>' +
+      "</div>";
+  }).join("") + "</div>";
   bindAll("[data-edit-liab]", "data-edit-liab", openLiab);
+  bindCells("liabList");
 }
 
 function checkFor(liabilityId) {
@@ -2557,6 +2562,147 @@ $("periodPick").onchange = renderMonth;
 
 // ---- accounts view ---------------------------------------------------------
 
+// The holdings sheet (P5.4a). Rows carry what a spreadsheet row carries: what it is,
+// what it is worth, and what it did last month. Sections are institutions, sub-headers are
+// accounts, and every figure is the same one net worth uses — nothing is recomputed here.
+//
+// Structural edits (add an account, rename a holding) stay in the existing dialogs. Only
+// the reading is new; editing figures in place is P5.4b.
+function sheetPeriod() {
+  var picked = $("sheetPeriod").value;
+  return WM.isPeriod(picked) ? picked : WM.currentPeriod();
+}
+
+function rowFigures(subjectId) {
+  var period = sheetPeriod();
+  var now = WM.basePositionFor(state, subjectId, period);
+  if (!now) return { value: "—", raw: "", valueStale: false, change: "", total: 0 };
+
+  if (now.convertible === false) {
+    return {
+      value: esc(WM.formatAmount(now.nativeBalance)) + " " + esc(now.currency),
+      raw: "", foreign: true,
+      valueStale: false,
+      change: '<span class="srow-warn">no rate</span>',
+      total: 0
+    };
+  }
+
+  var prev = WM.basePositionFor(state, subjectId, WM.prevPeriod(period));
+  var change = "";
+  // A carried-forward figure has not moved because nothing was recorded, not because the
+  // holding stood still. Reporting that as a RM 0 change would be a claim about the month.
+  if (now.stale) {
+    change = '<span class="srow-warn">not updated</span>';
+  } else if (prev && prev.convertible !== false) {
+    var delta = now.balance - prev.balance;
+    if (delta === 0) {
+      change = '<span class="srow-flat">no change</span>';
+    } else {
+      var up = delta > 0;
+      var pct = prev.balance ? " (" + esc((Math.abs(delta) / Math.abs(prev.balance) * 100).toFixed(1)) + "%)" : "";
+      change = '<span class="yield ' + (up ? "up" : "dn") + '">' + (up ? "▲ +" : "▼ −") +
+        esc(fmtRM(Math.abs(delta))) + pct + "</span>";
+    }
+  }
+  return {
+    value: esc(fmtRM(now.balance)), raw: WM.formatAmount(now.balance),
+    valueStale: now.stale, change: change, total: now.balance
+  };
+}
+
+// A cell is editable when its figure is a plain recorded balance. A unit-based holding
+// is not: its balance is units x price, so typing a ringgit figure over it would be
+// overwritten by the unit maths and read as a silent rejection. Those rows stay text and
+// say where to edit them.
+function valueCell(fig, kind, id, name, editable) {
+  // A foreign figure with no rate is shown in its own currency and left read-only: a cell
+  // that formats ringgit would invite a ringgit figure over a USD balance.
+  if (!editable || fig.foreign) {
+    return '<div class="srow-v">' + fig.value +
+      (fig.valueStale ? '<span class="stale-mark" title="carried forward">*</span>' : "") + "</div>";
+  }
+  // A carried-forward figure goes in as a placeholder, never as a value: it is last
+  // month's number, and leaving the cell must not record it as this month's entry.
+  var recorded = fig.valueStale ? "" : fig.raw;
+  var placeholder = fig.valueStale ? fig.value.replace(/<[^>]*>/g, "") + " carried" : "—";
+  return '<div class="srow-v"><input class="cellin" type="text" inputmode="decimal" ' +
+    'id="cell_' + esc(id) + '" data-cell="' + esc(id) + '" data-cellkind="' + esc(kind) + '" ' +
+    'value="' + esc(recorded) + '" placeholder="' + esc(placeholder) + '" ' +
+    'aria-label="' + esc(name) + ", " + esc(monthLabel(sheetPeriod())) + '">' +
+    (fig.valueStale ? '<span class="stale-mark" title="carried forward">*</span>' : "") + "</div>";
+}
+
+// Saving redraws the sheet, which replaces the very element a click was travelling to, so
+// the cell being clicked into is remembered before the blur that saves the old one and
+// focused again afterwards. Without this, every click from one cell to the next drops
+// focus to the body and the sheet cannot be filled in without the mouse twice over.
+var pendingCell = null;
+document.addEventListener('mousedown', function (e) {
+  var el = e.target && e.target.closest ? e.target.closest('.cellin') : null;
+  pendingCell = el ? el.id : null;
+}, true);
+
+// Saving one cell must not touch the rest of the month's entry. applyMonth blanks every
+// amount field it is not given, so the contribution, withdrawal and income already
+// recorded for this month are read back and passed through untouched. Losing them to a
+// balance edit would be exactly the silent data loss this app exists to avoid.
+function saveCell(el) {
+  var id = el.getAttribute("data-cell");
+  var kind = el.getAttribute("data-cellkind");
+  var period = sheetPeriod();
+  var existing = WM.valuationFor(state, id, period);
+  var row = { balance: el.value };
+  row[kind] = id;
+  ["contribution", "withdrawal", "income"].forEach(function (f) {
+    row[f] = existing ? existing[f] : null;
+  });
+
+  var res = WM.applyMonth(state, period, [row], deviceId);
+  if (res.errors.length) {
+    el.classList.add("badfield");
+    toast("That is not a number — " + esc(el.value));
+    return false;
+  }
+  el.classList.remove("badfield");
+  if (!res.created && !res.updated && !res.deleted) return true;
+  commit();
+  if (pendingCell) {
+    var target = document.getElementById(pendingCell);
+    pendingCell = null;
+    if (target) { target.focus(); target.select(); }
+  }
+  return true;
+}
+
+// Enter and Tab move down the sheet the way a spreadsheet does. commit() re-renders, so
+// the next cell is found again by id after the save rather than held across it.
+function bindCells(rootId) {
+  var cells = Array.prototype.slice.call(document.querySelectorAll("#" + rootId + " .cellin"));
+  cells.forEach(function (el, i) {
+    el.setAttribute("data-was", el.value);
+    el.onblur = function () {
+      if (el.value === el.getAttribute("data-was")) return;
+      saveCell(el);
+    };
+    el.onkeydown = function (e) {
+      if (e.key === "Escape") {
+        el.value = el.getAttribute("data-was");
+        el.classList.remove("badfield");
+        el.blur();
+        return;
+      }
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      var next = cells[i + 1];
+      var nextId = next ? next.id : null;
+      if (el.value !== el.getAttribute("data-was") && !saveCell(el)) return;
+      var target = nextId ? document.getElementById(nextId) : null;
+      if (target) { target.focus(); target.select(); }
+    };
+  });
+}
+
 function renderTree() {
   var E = WM;
   var institutions = E.live(state.institutions);
@@ -2575,6 +2721,7 @@ function renderTree() {
     var accounts = E.accountsFor(state, inst.id).filter(function (a) {
       return showArchived || !a.archived;
     });
+    var instTotal = 0, instHasFigure = false;
 
     var acctHtml = accounts.map(function (a) {
       var holdings = E.holdingsFor(state, a.id);
@@ -2583,8 +2730,13 @@ function renderTree() {
       if (a.shariah) tags += '<span class="tag">Shariah</span> ';
       if (!a.liquid) tags += '<span class="tag">Illiquid</span> ';
       if (a.archived) tags += '<span class="tag mute">Archived</span> ';
+      var acctTotal = 0, acctHasFigure = false;
 
       var holdHtml = holdings.map(function (h) {
+        var fig = rowFigures(h.id);
+        acctTotal += fig.total;
+        if (fig.value !== "—") acctHasFigure = true;
+
         // Realised beside advertised — the Fund Desk principle (G5). A fund quoting
         // 4.5% that actually paid 3.9% should say so on the same line.
         var n = WM.netOfFees(state, h);
@@ -2614,16 +2766,24 @@ function renderTree() {
             }
           }
         }
+        var detail = yieldHtml + unitHtml;
 
-        return '<div class="hold"><span>' + esc(h.name) + '</span>' +
+        return '<div class="srow"><div class="srow-n">' +
+          '<span class="srow-t">' + esc(h.name) + "</span>" +
           '<span class="tag">' + esc(h.instrumentType || "—") + "</span>" +
-          (h.rate ? '<span>' + esc(String(h.rate)) + "% advertised</span>" : "") +
-          yieldHtml + unitHtml +
-          '<div class="spacer"></div>' +
-          '<button class="btn sm" data-edit-hold="' + esc(h.id) + '">Edit</button></div>';
+          (h.rate ? '<span class="srow-sub">' + esc(String(h.rate)) + "% advertised</span>" : "") +
+          (detail ? '<div class="srow-d">' + detail + "</div>" : "") +
+          "</div>" +
+          '<div class="srow-c">' + fig.change + "</div>" +
+          valueCell(fig, "holdingId", h.id, h.name, !h.unitBased) +
+          '<div class="srow-a"><button class="btn sm" data-edit-hold="' + esc(h.id) + '">Edit</button></div>' +
+          "</div>";
       }).join("");
 
-      return '<div class="acct"><div class="acct-h">' +
+      instTotal += acctTotal;
+      if (acctHasFigure) instHasFigure = true;
+
+      return '<div class="sheet-acct"><div class="sheet-sub">' +
         '<span class="acct-n">' + esc(a.name) + "</span>" +
         '<span class="tag">' + esc(a.class) + "</span>" +
         (a.currency && a.currency !== "MYR" ? '<span class="tag">' + esc(a.currency) + "</span>" : "") +
@@ -2631,18 +2791,26 @@ function renderTree() {
         '<div class="spacer"></div>' +
         '<button class="btn sm" data-edit-acct="' + esc(a.id) + '">Edit</button>' +
         '<button class="btn sm" data-add-hold="' + esc(a.id) + '">+ Holding</button>' +
-        "</div>" + holdHtml + "</div>";
+        "</div>" +
+        (holdHtml || '<div class="srow"><div class="srow-n"><span class="srow-sub">No holdings yet.</span></div></div>') +
+        (acctHasFigure ? '<div class="srow sub-total"><div class="srow-n"><span class="srow-sub">' +
+          esc(a.name) + " total</span></div><div class=\"srow-c\"></div>" +
+          '<div class="srow-v">' + esc(fmtRM(acctTotal)) + '</div><div class="srow-a"></div></div>' : "") +
+        "</div>";
     }).join("");
 
-    return '<div class="inst"><div class="inst-h">' +
+    return '<div class="sheet"><div class="sheet-h">' +
       '<span class="inst-n">' + esc(inst.name) + "</span>" +
       '<span class="tag">' + esc(inst.type || "—") + "</span>" +
       (inst.pidmMember ? '<span class="tag good">PIDM member</span>' : "") +
       '<div class="spacer"></div>' +
+      (instHasFigure ? '<span class="sheet-total">' + esc(fmtRM(instTotal)) + "</span>" : "") +
       '<button class="btn sm" data-edit-inst="' + esc(inst.id) + '">Edit</button>' +
       '<button class="btn sm" data-add-acct="' + esc(inst.id) + '">+ Account</button>' +
       "</div>" +
-      (acctHtml || '<p class="note" style="margin-bottom:8px">No accounts yet.</p>') +
+      '<div class="srow sheet-cols"><div class="srow-n">Holding</div>' +
+      '<div class="srow-c">1 month</div><div class="srow-v">Value</div><div class="srow-a"></div></div>' +
+      (acctHtml || '<div class="srow"><div class="srow-n"><span class="srow-sub">No accounts yet.</span></div></div>') +
       "</div>";
   }).join("");
 
@@ -2653,7 +2821,9 @@ function renderTree() {
   bindAll("[data-edit-hold]", "data-edit-hold", openHold);
   bindAll("[data-add-acct]", "data-add-acct", function (id) { openAcct(null, id); });
   bindAll("[data-add-hold]", "data-add-hold", function (id) { openHold(null, id); });
+  bindCells("tree");
 }
+
 
 function bindAll(selector, attr, fn) {
   Array.prototype.forEach.call(document.querySelectorAll(selector), function (el) {
@@ -2937,6 +3107,8 @@ $("realTerms").onchange = renderForecast;
 
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
+// The sheet reads and writes one month at a time; changing it redraws the three lists.
+$("sheetPeriod").onchange = function () { renderTree(); renderAssets(); renderLiabilities(); };
 $("allocDim").onchange = renderAllocation;
 
 Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
@@ -2953,6 +3125,7 @@ Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
 
 function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
+  if (!$("sheetPeriod").value) $("sheetPeriod").value = WM.currentPeriod();
   renderWorth();
   renderForecast();
   renderRelief();
