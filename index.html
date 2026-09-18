@@ -666,7 +666,7 @@
         <input type="text" inputmode="decimal" id="s_cost" placeholder="—">
       </div>
       <div class="fitem">
-        <label class="fl" for="s_value">Current value</label>
+        <label class="fl" for="s_value">Value <span id="s_valueMonth"></span></label>
         <input type="text" inputmode="decimal" id="s_value" placeholder="—">
       </div>
       <div class="fitem" style="grid-column:1/-1">
@@ -730,8 +730,13 @@
         <label class="fl" for="l_instalment">Monthly instalment</label>
         <input type="text" inputmode="decimal" id="l_instalment" placeholder="—">
       </div>
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="l_balance">Outstanding balance <span id="l_balanceMonth"></span></label>
+        <input type="text" inputmode="decimal" id="l_balance" placeholder="—">
+        <p class="note" style="margin-top:6px">What is still owed at the end of that month. Blank means <b>not recorded</b>, which is different from zero.</p>
+      </div>
     </div>
-    <p class="note" style="margin-top:10px">Net worth uses the outstanding balance you enter each month on the Month tab. These terms drive the schedule on the Loans tab.</p>
+    <p class="note" style="margin-top:10px">The balance above is this month's figure — the same one the sheet and the Month-end screen record. These terms drive the schedule on the Loans tab.</p>
 
     <hr class="hr">
     <div class="sec-t" style="margin-bottom:8px">Check against a statement</div>
@@ -810,6 +815,11 @@
       <div class="fitem">
         <label class="fl" for="h_epf">EPF account</label>
         <select id="h_epf"></select>
+      </div>
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="h_balance">Balance <span id="h_balanceMonth"></span></label>
+        <input type="text" inputmode="decimal" id="h_balance" placeholder="—">
+        <p class="note" style="margin-top:6px">Leave blank if you have not got the figure for this month. Blank means <b>not recorded</b>, which is different from zero.</p>
       </div>
       <div class="fitem"><label class="chk"><input type="checkbox" id="h_units"> Unit-based</label></div>
       <div class="fitem">
