@@ -201,6 +201,8 @@ function renderFxNote(now) {
 function renderWorth() {
   var pts = WM.series(state, WM.currentPeriod());
   if (!pts.length) {
+    $("worthHero").innerHTML = "";
+    $("catStrip").innerHTML = "";
     $("worthKpis").innerHTML = "";
     $("staleWrap").style.display = "none";
     renderFxNote(null);
@@ -246,6 +248,9 @@ function renderWorth() {
 
   renderFxNote(now);
 
+  renderHero(pts);
+  renderCategoryStrip();
+
   drawWorthChart(pts);
 
   // Holdings and physical assets both sit on the asset side — listing only holdings
@@ -271,6 +276,61 @@ function renderWorth() {
       liabs.map(function (l) { return lineHtml(l, true); }).join("") +
       '<div class="subtot"><span>Liabilities</span><span class="wv">−' + esc(fmtRM(now.liabilities)) + "</span></div>" : "") +
     '<div class="subtot"><span>Net worth</span><span class="wv">' + esc(fmtRM(now.net)) + "</span></div>";
+}
+
+
+// ---- headline and category strip (P5.2) ------------------------------------
+
+// One movement, said three ways: an arrow, a sign and a colour — never colour alone
+// (NFR-9). A window with too little history behind it says so; it never reports RM 0,
+// which would read as "nothing changed" rather than "not known yet".
+function changeHtml(label, change) {
+  if (!change) {
+    return '<div class="hero-d"><div class="hero-dk">' + esc(label) + '</div>' +
+      '<div class="hero-dv neu">Not enough history yet</div></div>';
+  }
+  var up = change.delta >= 0;
+  var pct = change.pct === null ? "" : " (" + esc(Math.abs(change.pct).toFixed(1)) + "%)";
+  return '<div class="hero-d"><div class="hero-dk">' + esc(label) + '</div>' +
+    '<div class="hero-dv ' + (up ? "up" : "dn") + '">' + (up ? "▲ +" : "▼ −") +
+    esc(fmtRM(Math.abs(change.delta))) + pct + "</div></div>";
+}
+
+function renderHero(pts) {
+  var now = pts[pts.length - 1];
+  $("worthHero").innerHTML =
+    '<div class="hero">' +
+      '<div class="hero-v">' + esc(fmtRM(now.net)) +
+        (now.partial ? '<span class="stale-mark" title="includes figures carried forward">*</span>' : "") +
+      "</div>" +
+      '<div class="hero-ds">' +
+        changeHtml("1 month", WM.deltaOver(pts, 1)) +
+        changeHtml("1 year", WM.deltaOver(pts, 12)) +
+      "</div>" +
+    "</div>";
+}
+
+// The strip is a decomposition of the headline, so it is drawn only when it reconciles to
+// it. Figures that do not add up are worse than no figures: the rest of the app exists to
+// be trusted with arithmetic.
+function renderCategoryStrip() {
+  var t = WM.categoryTotals(state, WM.currentPeriod());
+  if (!t.reconciles) {
+    $("catStrip").innerHTML = '<div class="warnbox">The category totals do not add up to net worth, ' +
+      'so they are not shown. This is a bug — the figures above are still correct.</div>';
+    return;
+  }
+  var items = t.categories.map(function (c) {
+    return { label: c.label, value: fmtRM(c.total), partial: c.partial };
+  });
+  items.push({ label: "Liabilities", value: "−" + fmtRM(t.liabilities), partial: t.liabilitiesPartial });
+
+  $("catStrip").innerHTML = '<div class="strip">' + items.map(function (i) {
+    return '<div class="strip-i"><div class="strip-k">' + esc(i.label) + "</div>" +
+      '<div class="strip-v">' + esc(i.value) +
+      (i.partial ? '<span class="stale-mark" title="includes figures carried forward">*</span>' : "") +
+      "</div></div>";
+  }).join("") + "</div>";
 }
 
 // Hand-rolled SVG: no charting library, so the app stays offline and dependency-free.
