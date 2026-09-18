@@ -149,6 +149,16 @@ svg.chart{max-height:380px}
 .kpi{background:var(--surface);border:.5px solid var(--line);border-radius:var(--r);padding:13px 15px}
 .kpi .k{font-size:11.5px;color:var(--tx2);font-weight:500}
 .kpi .v{font-size:clamp(16px,2.2vw,22px);font-weight:600;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* ---- dashboard (P5.3) ---- */
+.kpi.primary{grid-column:span 2;display:flex;flex-direction:column;gap:14px}
+.kpi.primary .v{font-size:clamp(22px,3.2vw,30px)}
+.kpi-split{padding-top:12px;border-top:.5px solid var(--line)}
+.kpi .d{font-size:12px;color:var(--tx2);margin-top:3px}
+.kpi .d .up,.kpi .d.up{color:var(--good)}
+.kpi .d .dn,.kpi .d.dn{color:var(--bad)}
+.kpi .d .neu,.kpi .d.neu{color:var(--tx3)}
+.donuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.donut-t{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);margin-bottom:6px}
 .note{font-size:12.5px;color:var(--tx3);line-height:1.65}
 .hr{height:.5px;background:var(--line);border:none;margin:16px 0}
 button,input{font-family:inherit;font-size:14px}
