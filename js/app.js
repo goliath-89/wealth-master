@@ -290,6 +290,219 @@ function renderWorth() {
 }
 
 
+
+// ---- row detail (P5.6) -----------------------------------------------------
+//
+// A row answers "what is it worth". The panel answers the rest without leaving the
+// sheet: what it actually returned, what it is made of, what it has done, and what was
+// recorded month by month. Every figure is read from the engines that already compute
+// it — the panel is a view, and rendering it never writes anything.
+var openRow = null;
+var rowPanelReturn = null;
+
+function rowSubject(kind, id) {
+  if (kind === "holding") return WM.byId(state.holdings, id);
+  if (kind === "asset") return WM.byId(state.assets, id);
+  return WM.byId(state.liabilities, id);
+}
+
+function sparkline(subjectId) {
+  var all = WM.series(state, sheetPeriod()).map(function (p) { return p.period; }).slice(-12);
+  if (all.length < 2) return "";
+  var pts = WM.balancePoints(state, subjectId, all).filter(function (p) { return p.value !== null; });
+  if (pts.length < 2) return "";
+
+  var W = 320, H = 64;
+  var vals = pts.map(function (p) { return p.value; });
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  if (hi === lo) { hi = lo + 1; }
+  var X = function (i) { return (i / (pts.length - 1)) * W; };
+  var Y = function (v) { return H - 4 - ((v - lo) / (hi - lo)) * (H - 10); };
+  var line = pts.map(function (p, i) { return X(i).toFixed(1) + "," + Y(p.value).toFixed(1); }).join(" L");
+
+  return '<svg class="chart spark" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" ' +
+    'role="img" aria-label="Balance over the last ' + pts.length + ' recorded months">' +
+    '<path d="M' + line + " L" + X(pts.length - 1).toFixed(1) + "," + H + " L0," + H +
+    '" fill="var(--accent-tint)" stroke="none"></path>' +
+    '<path d="M' + line + '" fill="none" stroke="var(--accent)" stroke-width="2" ' +
+    'stroke-linejoin="round"></path></svg>';
+}
+
+function panelFigure(label, value, note) {
+  return '<div class="pf"><div class="pf-k">' + esc(label) + '</div><div class="pf-v">' + value + "</div>" +
+    (note ? '<div class="pf-n">' + note + "</div>" : "") + "</div>";
+}
+
+// The months as recorded, most recent first: the figure, and what was put in or paid out
+// beside it. A month that was never entered is not listed — it is not a zero.
+function panelHistory(subjectId) {
+  var periods = WM.series(state, sheetPeriod()).map(function (p) { return p.period; }).slice(-6).reverse();
+  var rows = periods.map(function (p) {
+    var v = WM.valuationFor(state, subjectId, p);
+    if (!v || v.balance === null || v.balance === undefined) return "";
+    var extras = [];
+    if (v.contribution) extras.push("in " + esc(fmtRM(v.contribution)));
+    if (v.withdrawal) extras.push("out " + esc(fmtRM(v.withdrawal)));
+    if (v.income) extras.push("earned " + esc(fmtRM(v.income)));
+    return '<div class="ph"><span class="ph-p">' + esc(monthLabel(p)) + "</span>" +
+      (extras.length ? '<span class="ph-x">' + extras.join(" · ") + "</span>" : "") +
+      '<span class="ph-v">' + esc(fmtRM(v.balance)) + "</span></div>";
+  }).join("");
+  return rows || '<p class="note">Nothing recorded in the last six months.</p>';
+}
+
+function renderRowPanel() {
+  var el = $("rowPanel");
+  if (!openRow) { el.hidden = true; document.body.classList.remove("panel-open"); return; }
+
+  var subject = rowSubject(openRow.kind, openRow.id);
+  if (!subject || subject.deleted) {
+    openRow = null; el.hidden = true; document.body.classList.remove("panel-open"); return;
+  }
+
+  var fig = rowFigures(openRow.id);
+  var body = "";
+  var sub = "";
+
+  if (openRow.kind === "holding") {
+    var acct = WM.byId(state.accounts, subject.accountId);
+    var inst = acct ? WM.byId(state.institutions, acct.institutionId) : null;
+    sub = [inst ? inst.name : "", acct ? acct.name : "", subject.instrumentType || ""]
+      .filter(Boolean).join(" · ");
+  } else if (openRow.kind === "asset") {
+    sub = subject.class || "";
+  } else {
+    sub = [subject.type || "", subject.rateBasis === "flat" ? "Flat rate" : "Reducing balance"]
+      .filter(Boolean).join(" · ");
+  }
+
+  body += '<div class="p-sub">' + esc(sub) + "</div>";
+  body += '<div class="p-value">' + fig.value +
+    (fig.valueStale ? '<span class="stale-mark">*</span>' : "") + "</div>";
+  body += '<div class="p-change">' + (fig.change || '<span class="srow-flat">no earlier figure</span>') +
+    " · " + esc(monthLabel(sheetPeriod())) + "</div>";
+  if (fig.valueStale) {
+    body += '<p class="note">Carried forward — nothing was recorded for this month, so the ' +
+      "last known balance is shown.</p>";
+  }
+
+  var figures = "";
+  if (openRow.kind === "holding") {
+    var n = WM.netOfFees(state, subject);
+    if (n) {
+      figures += panelFigure("Realised yield",
+        esc(n.realisedPct.toFixed(2)) + "%",
+        subject.rate ? "advertised " + esc(String(subject.rate)) + "%" : "over " + n.months + " months");
+      if (n.feePct) {
+        figures += panelFigure("After fees", esc(n.netPct.toFixed(2)) + "%",
+          esc(String(n.feePct)) + "% a year");
+      }
+    }
+    if (subject.unitBased) {
+      var pos = WM.position(state, subject, sheetPeriod());
+      if (pos && pos.units) {
+        figures += panelFigure("Units", esc(pos.units.toLocaleString("en-MY")),
+          "at " + esc(WM.formatAmount(pos.unitPrice)) + (pos.fixedPrice ? " fixed" : ""));
+        if (!pos.fixedPrice && pos.unrealisedPct !== null) {
+          var up = pos.unrealisedGain >= 0;
+          figures += panelFigure("Unrealised",
+            '<span class="' + (up ? "up" : "dn") + '">' + (up ? "▲ " : "▼ ") +
+            esc(fmtRM(Math.abs(pos.unrealisedGain))) + "</span>",
+            esc(pos.unrealisedPct.toFixed(1)) + "% against cost");
+        }
+      }
+    }
+  } else if (openRow.kind === "asset") {
+    var eq = WM.equityFor(state, subject.id, sheetPeriod());
+    if (eq && eq.liabilityName) {
+      // Equity belongs here and nowhere else: the asset and its loan already sit on
+      // opposite sides of net worth, so a total that added equity would double count.
+      figures += panelFigure("Equity", esc(fmtRM(eq.equity)),
+        esc(fmtRM(eq.owed)) + " owed on " + esc(eq.liabilityName));
+    }
+  } else {
+    if (subject.ratePct) figures += panelFigure("Rate", esc(String(subject.ratePct)) + "%",
+      subject.rateBasis === "flat" ? "flat" : "reducing balance");
+    if (subject.instalment) figures += panelFigure("Instalment", esc(fmtRM(subject.instalment)), "a month");
+    if (subject.tenureMonths) figures += panelFigure("Tenure", esc(String(subject.tenureMonths)) + " months", "");
+  }
+  if (figures) body += '<div class="p-figures">' + figures + "</div>";
+
+  var spark = sparkline(openRow.id);
+  if (spark) body += '<div class="p-sec"><div class="p-t">Balance over time</div>' + spark + "</div>";
+
+  body += '<div class="p-sec"><div class="p-t">As recorded</div>' + panelHistory(openRow.id) + "</div>";
+
+  var editAttr = openRow.kind === "holding" ? "data-edit-hold"
+    : openRow.kind === "asset" ? "data-edit-asset" : "data-edit-liab";
+  body += '<div class="row p-actions">' +
+    '<button class="btn pri" id="panelRecord">Record this month</button>' +
+    '<button class="btn" ' + editAttr + '="' + esc(openRow.id) + '">Edit ' +
+    (openRow.kind === "holding" ? "holding" : openRow.kind) + "</button>" +
+    (openRow.kind === "liability" ? '<button class="btn" id="panelSchedule">Open schedule</button>' : "") +
+    "</div>";
+
+  $("rowPanelTitle").textContent = subject.name;
+  $("rowPanelBody").innerHTML = body;
+  el.hidden = false;
+  // On a wide screen the sheet makes room rather than hiding behind the panel: the cell
+  // "Record this month" focuses is in the column the panel would otherwise cover.
+  document.body.classList.add("panel-open");
+
+  bindAll("[data-edit-hold]", "data-edit-hold", openHold);
+  bindAll("[data-edit-asset]", "data-edit-asset", openAsset);
+  bindAll("[data-edit-liab]", "data-edit-liab", openLiab);
+  // "Record this month" is the same cell the sheet edits, not a second way in.
+  wire("panelRecord", function () {
+    var cell = $("cell_" + openRow.id);
+    if (!cell) { toast("This figure is not typed in directly"); return; }
+    cell.focus();
+    cell.select();
+  });
+  wire("panelSchedule", function () {
+    var tab = document.querySelector('.tab[data-v="loans"]');
+    if (tab) tab.click();
+  });
+}
+
+function openRowPanel(kind, id, returnTo) {
+  openRow = { kind: kind, id: id };
+  rowPanelReturn = returnTo || null;
+  renderRowPanel();
+  $("rowPanelTitle").focus();
+}
+
+function closeRowPanel() {
+  if (!openRow) return;
+  openRow = null;
+  $("rowPanel").hidden = true;
+  document.body.classList.remove("panel-open");
+  // Focus goes back where it came from, so the keyboard does not lose its place.
+  if (rowPanelReturn && document.getElementById(rowPanelReturn)) {
+    document.getElementById(rowPanelReturn).focus();
+  }
+  rowPanelReturn = null;
+}
+
+// The name is a real button, so the panel is reachable by keyboard; clicking anywhere
+// else on the row that is not itself a control opens it too, the way a sheet behaves.
+function bindRowOpeners(rootId) {
+  var root = $(rootId);
+  if (!root) return;
+  Array.prototype.forEach.call(root.querySelectorAll("[data-row-id]"), function (btn) {
+    btn.onclick = function () {
+      openRowPanel(btn.getAttribute("data-row-kind"), btn.getAttribute("data-row-id"), btn.id);
+    };
+  });
+  Array.prototype.forEach.call(root.querySelectorAll(".srow"), function (row) {
+    row.onclick = function (e) {
+      if (e.target.closest("button,input,select,a,label")) return;
+      var opener = row.querySelector("[data-row-id]");
+      if (opener) opener.click();
+    };
+  });
+}
+
 // ---- headline and category strip (P5.2) ------------------------------------
 
 // One movement, said three ways: an arrow, a sign and a colour — never colour alone
@@ -2182,7 +2395,8 @@ function renderAssets() {
     }
     var fig = rowFigures(a.id);
     return '<div class="srow"><div class="srow-n">' +
-      '<span class="srow-t">' + esc(a.name) + "</span>" +
+      '<button class="srow-t" id="open_' + esc(a.id) + '" data-row-kind="asset" ' +
+      'data-row-id="' + esc(a.id) + '">' + esc(a.name) + "</button>" +
       '<span class="tag">' + esc(a.class || "—") + "</span>" +
       (a.liquid ? "" : '<span class="tag">Illiquid</span>') +
       equityLine +
@@ -2194,6 +2408,7 @@ function renderAssets() {
   }).join("") + "</div>";
   bindAll("[data-edit-asset]", "data-edit-asset", openAsset);
   bindCells("assetList");
+  bindRowOpeners("assetList");
 }
 
 function openAsset(id) {
@@ -2282,7 +2497,8 @@ function renderLiabilities() {
   $("liabList").innerHTML = '<div class="sheet">' + list.map(function (l) {
     var fig = rowFigures(l.id);
     return '<div class="srow"><div class="srow-n">' +
-      '<span class="srow-t">' + esc(l.name) + "</span>" +
+      '<button class="srow-t" id="open_' + esc(l.id) + '" data-row-kind="liability" ' +
+      'data-row-id="' + esc(l.id) + '">' + esc(l.name) + "</button>" +
       '<span class="tag">' + esc(l.type || "—") + "</span>" +
       '<span class="tag">' + (l.rateBasis === "flat" ? "Flat rate" : "Reducing") + "</span>" +
       "</div>" +
@@ -2293,6 +2509,7 @@ function renderLiabilities() {
   }).join("") + "</div>";
   bindAll("[data-edit-liab]", "data-edit-liab", openLiab);
   bindCells("liabList");
+  bindRowOpeners("liabList");
 }
 
 function checkFor(liabilityId) {
@@ -2819,7 +3036,8 @@ function renderTree() {
         var detail = yieldHtml + unitHtml;
 
         return '<div class="srow"><div class="srow-n">' +
-          '<span class="srow-t">' + esc(h.name) + "</span>" +
+          '<button class="srow-t" id="open_' + esc(h.id) + '" data-row-kind="holding" ' +
+          'data-row-id="' + esc(h.id) + '">' + esc(h.name) + "</button>" +
           '<span class="tag">' + esc(h.instrumentType || "—") + "</span>" +
           (h.rate ? '<span class="srow-sub">' + esc(String(h.rate)) + "% advertised</span>" : "") +
           (detail ? '<div class="srow-d">' + detail + "</div>" : "") +
@@ -2872,6 +3090,7 @@ function renderTree() {
   bindAll("[data-add-acct]", "data-add-acct", function (id) { openAcct(null, id); });
   bindAll("[data-add-hold]", "data-add-hold", function (id) { openHold(null, id); });
   bindCells("tree");
+  bindRowOpeners("tree");
 }
 
 
@@ -3157,6 +3376,10 @@ $("realTerms").onchange = renderForecast;
 
 $("addInstBtn").onclick = function () { openInst(null); };
 $("showArchived").onchange = renderTree;
+wire("rowPanelClose", closeRowPanel);
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && openRow) closeRowPanel();
+});
 // The sheet reads and writes one month at a time; changing it redraws the three lists.
 $("sheetPeriod").onchange = function () { renderTree(); renderAssets(); renderLiabilities(); };
 $("allocDim").onchange = renderAllocation;
@@ -3197,6 +3420,7 @@ function render() {
   renderStrategy();
   renderLoans();
   WM.renderNavTotals(state, document);
+  renderRowPanel();
 
   var counts = [
     ["Institutions", liveCount(state.institutions)],

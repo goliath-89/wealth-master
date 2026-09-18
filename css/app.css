@@ -366,6 +366,53 @@ tbody tr.paid td{color:var(--tx3)}
 }
 .snack.on{transform:translateX(-50%) translateY(0)}
 
+/* ---- row detail panel (P5.6) ---- */
+.srow-t{
+  font:inherit;font-weight:500;color:var(--tx);background:none;border:none;padding:4px 0;
+  cursor:pointer;text-align:left;border-bottom:1px solid transparent;
+}
+.srow-t:hover{border-bottom-color:var(--line2)}
+.srow-t:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.srow{cursor:default}
+.drawer{
+  position:fixed;z-index:90;background:var(--surface);border:.5px solid var(--line);
+  display:flex;flex-direction:column;overflow-y:auto;
+  left:0;right:0;bottom:0;max-height:86vh;border-radius:18px 18px 0 0;
+  padding:0 18px calc(18px + env(safe-area-inset-bottom));
+  box-shadow:0 -12px 40px rgba(0,0,0,.35);
+}
+@media(min-width:1024px){
+  body.panel-open .main{margin-right:390px}
+  .drawer{
+    left:auto;top:0;right:0;bottom:0;width:390px;max-height:none;border-radius:0;
+    padding:0 22px 22px;box-shadow:-12px 0 40px rgba(0,0,0,.3);
+  }
+}
+.drawer-h{
+  position:sticky;top:0;background:var(--surface);display:flex;align-items:flex-start;gap:10px;
+  padding:16px 0 12px;border-bottom:.5px solid var(--line);margin-bottom:14px;
+}
+.drawer-t{flex:1;min-width:0;font-size:19px;font-weight:600;letter-spacing:-.01em;word-break:break-word}
+.drawer-t:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.p-sub{font-size:12.5px;color:var(--tx3)}
+.p-value{font-size:30px;font-weight:300;margin-top:6px;font-variant-numeric:tabular-nums}
+.p-change{font-size:12.5px;color:var(--tx2);margin-top:2px}
+.p-figures{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:16px 0;
+  padding:14px 0;border-top:.5px solid var(--line);border-bottom:.5px solid var(--line)}
+.pf-k{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3)}
+.pf-v{font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+.pf-n{font-size:11.5px;color:var(--tx3);margin-top:2px}
+.p-sec{margin-top:18px}
+.p-t{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px}
+.spark{height:64px;width:100%}
+.ph{display:flex;align-items:baseline;gap:10px;padding:8px 0;border-bottom:.5px solid var(--line);font-size:13px}
+.ph:last-child{border-bottom:none}
+.ph-p{color:var(--tx2);width:78px;flex-shrink:0}
+.ph-x{color:var(--tx3);font-size:11.5px;flex:1;min-width:0}
+.ph-v{margin-left:auto;font-variant-numeric:tabular-nums}
+.p-actions{margin-top:20px}
+.p-actions .btn{flex:1}
+
 /* ---- polish (P5.5) ---- */
 .btn:focus-visible,.iconbtn:focus-visible,select:focus-visible,summary:focus-visible,
 .cellin:focus-visible,input[type=checkbox]:focus-visible{
@@ -391,7 +438,8 @@ tbody tr.paid td{color:var(--tx3)}
     --good:#0b6b42;--bad:#8c1d16;--warn:#6b4700;--warn-tint:#fbf4e6;--warn-line:#d8c9a6;
     --bad-tint:#fbeceb;--bad-line:#e0bcb9;
   }
-  .side,header .iconbtn,.snack,.modal-bg,.srow-a,.sheet-h .btn,.sheet-sub .btn,#addInstBtn{display:none!important}
+  .side,header .iconbtn,.snack,.modal-bg,.drawer,.srow-a,.sheet-h .btn,.sheet-sub .btn,
+  #addInstBtn{display:none!important}
   .main{margin-left:0}
   .wrap{max-width:none;padding:0}
   details.warnbox p{display:block!important}
