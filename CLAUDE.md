@@ -9,7 +9,7 @@ records working practice that would otherwise be lost between sessions.
 There is a published tracker of every requirement in `docs/requirements.md` against what
 the code actually does:
 
-**https://claude.ai/code/artifact/dc9d22f7-0f1e-4edd-927a-a826eee114cc**
+**https://claude.ai/artifact/UF4DLzWxBAhb5F6v3D6srb**
 
 **Shipping anything means updating that page in the same session.** Not at the end of a
 batch, not "next time" — the same session the work lands. It is the owner's map of the
