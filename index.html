@@ -489,10 +489,29 @@
   </div>
 
   <div class="sec">
-    <div class="sec-h"><div class="sec-t">Export CSV</div></div>
+    <div class="sec-h"><div class="sec-t">CSV round trip</div></div>
     <div class="card">
-      <p class="note" style="margin-bottom:14px">One file per entity, for bulk editing in Excel. Deleted records are included so a backup stays complete.</p>
+      <p class="note" style="margin-bottom:14px">One file per entity, for bulk editing in Excel. Export it, change what you need, bring it back. Deleted records are included so a backup stays complete.</p>
       <div class="row" id="csvRow"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn pri" id="csvImportBtn">Import a CSV</button>
+        <input type="file" id="csvFileIn" accept=".csv,text/csv" style="display:none">
+      </div>
+      <p class="note" style="margin-top:10px"><b>A row you delete in Excel is not deleted here.</b> An import changes the rows the file contains and leaves everything else alone; to remove a record, set its <code>deleted</code> cell to true. An empty cell clears a figure back to not-recorded &mdash; it never records RM&nbsp;0.</p>
+      <div id="csvStatus"></div>
+    </div>
+  </div>
+
+  <div class="sec" id="csvReviewSec" style="display:none">
+    <div class="sec-h"><div class="sec-t">Check before importing</div></div>
+    <div class="card">
+      <div id="csvReviewSummary"></div>
+      <div id="csvReviewProblems"></div>
+      <div id="csvReviewRows"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn pri" id="csvConfirmBtn">Import</button>
+        <button class="btn" id="csvCancelBtn">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -883,6 +902,7 @@
 <script src="js/migrate-funddesk.js?v=dev"></script>
 <script src="js/import-guard.js?v=dev"></script>
 <script src="js/csv.js?v=dev"></script>
+<script src="js/csv-import.js?v=dev"></script>
 <script src="js/filestore.js?v=dev"></script>
 <script src="js/entities.js?v=dev"></script>
 <script src="js/valuations.js?v=dev"></script>

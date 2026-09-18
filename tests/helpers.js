@@ -43,6 +43,7 @@ function loadLib(window) {
   delete require.cache[require.resolve("../js/migrate-funddesk.js")];
   delete require.cache[require.resolve("../js/import-guard.js")];
   delete require.cache[require.resolve("../js/csv.js")];
+  delete require.cache[require.resolve("../js/csv-import.js")];
   delete require.cache[require.resolve("../js/entities.js")];
   delete require.cache[require.resolve("../js/valuations.js")];
   delete require.cache[require.resolve("../js/networth.js")];
@@ -67,6 +68,7 @@ function loadLib(window) {
   var migrateFundDesk = require("../js/migrate-funddesk.js");
   var importGuard = require("../js/import-guard.js");
   var csv = require("../js/csv.js");
+  var csvImport = require("../js/csv-import.js");
   var entities = require("../js/entities.js");
   var valuations = require("../js/valuations.js");
   var networth = require("../js/networth.js");
@@ -88,7 +90,7 @@ function loadLib(window) {
   var uiShell = require("../js/ui-shell.js");
   return {
     schema: schema, store: store, migrateFundDesk: migrateFundDesk,
-    importGuard: importGuard, csv: csv, entities: entities, valuations: valuations, networth: networth, loans: loans, analytics: analytics, forecast: forecast, decisions: decisions, goals: goals, strategy: strategy, relief: relief, units: units, epf: epf, series: series, xlsx: xlsx, sheetImport: sheetImport, fx: fx, categories: categories, recap: recap, uiShell: uiShell
+    importGuard: importGuard, csv: csv, csvImport: csvImport, entities: entities, valuations: valuations, networth: networth, loans: loans, analytics: analytics, forecast: forecast, decisions: decisions, goals: goals, strategy: strategy, relief: relief, units: units, epf: epf, series: series, xlsx: xlsx, sheetImport: sheetImport, fx: fx, categories: categories, recap: recap, uiShell: uiShell
   };
 }
 
@@ -127,7 +129,7 @@ function loadApp(seedState, beforeApp) {
   };
 
   ["js/schema.js", "js/store.js", "js/migrate-funddesk.js", "js/import-guard.js",
-   "js/csv.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/strategy.js", "js/relief.js", "js/units.js", "js/epf.js", "js/series.js", "js/xlsx.js", "js/sheet-import.js", "js/fx.js", "js/categories.js", "js/recap.js", "js/ui-shell.js", "js/app.js"].forEach(function (rel) {
+   "js/csv.js", "js/csv-import.js", "js/filestore.js", "js/entities.js", "js/valuations.js", "js/networth.js", "js/loans.js", "js/analytics.js", "js/forecast.js", "js/decisions.js", "js/goals.js", "js/strategy.js", "js/relief.js", "js/units.js", "js/epf.js", "js/series.js", "js/xlsx.js", "js/sheet-import.js", "js/fx.js", "js/categories.js", "js/recap.js", "js/ui-shell.js", "js/app.js"].forEach(function (rel) {
     if (rel === "js/app.js" && typeof beforeApp === "function") beforeApp(window);
     var code = fs.readFileSync(path.join(ROOT, rel), "utf8");
     window.eval(code);

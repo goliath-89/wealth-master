@@ -1285,6 +1285,143 @@ $("undoImportBtn").onclick = function () {
     " rolled back");
 };
 
+// ---- CSV round trip (FR-7.7) -----------------------------------------------
+//
+// The other half of Export CSV. Same shape as the sheet import: read, show, confirm,
+// undo — nothing reaches the store before the owner has seen what it would do.
+
+var pendingCsv = null;
+
+function resetCsvReview() {
+  pendingCsv = null;
+  $("csvReviewSec").style.display = "none";
+  $("csvReviewRows").innerHTML = "";
+  $("csvReviewSummary").innerHTML = "";
+  $("csvReviewProblems").innerHTML = "";
+}
+
+$("csvImportBtn").onclick = function () { $("csvFileIn").click(); };
+
+$("csvFileIn").onchange = function (e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  $("csvFileIn").value = "";
+  resetCsvReview();
+  $("csvStatus").innerHTML = '<div class="prev" style="margin-top:12px">Reading ' +
+    esc(file.name) + "…</div>";
+
+  readFile(file, "text").then(function (text) {
+    var analysis = WM.analyseCsvFile(state, text, file.name);
+    if (!analysis.ok) {
+      $("csvStatus").innerHTML = '<div class="warnbox" style="margin-top:12px">' +
+        esc(analysis.fatal) + "</div>";
+      return;
+    }
+    $("csvStatus").innerHTML = "";
+    pendingCsv = analysis;
+    renderCsvReview();
+  }).catch(function (err) {
+    $("csvStatus").innerHTML = '<div class="warnbox" style="margin-top:12px">' +
+      esc(err && err.message ? err.message : "That file could not be read") + "</div>";
+  });
+};
+
+function csvCellText(v) {
+  if (v === null || v === undefined || v === "") return "blank";
+  return String(v);
+}
+
+function renderCsvReview() {
+  if (!pendingCsv) return;
+  var a = pendingCsv;
+  var c = a.counts;
+
+  var bits = [];
+  if (c.new) bits.push(c.new + " new");
+  if (c.update) bits.push(c.update + " changed");
+  if (c["delete"]) bits.push(c["delete"] + " to remove");
+  if (c.unchanged) bits.push(c.unchanged + " already right");
+  if (c.problems) bits.push(c.problems + " that cannot be read");
+
+  $("csvReviewSummary").innerHTML =
+    "<p><b>" + esc(a.fileName || "That file") + "</b> is " + esc(a.entity) + " — " +
+    esc(bits.length ? bits.join(", ") : "nothing to do") + ".</p>" +
+    '<p class="note" style="margin-top:8px">Rows not in this file are left exactly as they are. ' +
+    "Untick anything you would rather not import.</p>" +
+    (a.unknownColumns.length
+      ? '<p class="note" style="margin-top:8px">Ignored columns: ' +
+        esc(a.unknownColumns.join(", ")) + ".</p>"
+      : "");
+
+  var bad = a.rows.filter(function (r) { return r.problems.length; });
+  $("csvReviewProblems").innerHTML = bad.length
+    ? '<div class="warnbox" style="margin-top:12px"><b>' + bad.length + " row" +
+      (bad.length === 1 ? "" : "s") + " cannot be imported.</b> The rest still can.<br>" +
+      bad.map(function (r) {
+        return "Line " + r.line + ": " + esc(r.problems.join("; "));
+      }).join("<br>") + "</div>"
+    : "";
+
+  var shown = a.rows.filter(function (r) { return !r.problems.length && r.action !== "unchanged"; });
+  $("csvReviewRows").innerHTML = shown.length
+    ? shown.map(function (r, i) {
+        var badge = r.action === "new" ? "new" : r.action === "delete" ? "removes" : "updates";
+        var cls = r.action === "new" ? "new" : r.action === "delete" ? "upd" : "upd";
+        var detail = r.action === "new"
+          ? "added as a new record"
+          : r.action === "delete"
+            ? "marked deleted; its history is kept"
+            : r.changes.map(function (ch) {
+                return esc(ch.field) + " " + esc(csvCellText(ch.from)) + " → " +
+                  esc(csvCellText(ch.to));
+              }).join(", ");
+        return '<div class="irow"><div class="ihead">' +
+          '<input type="checkbox" data-csvrow="' + i + '"' + (r.include ? " checked" : "") + '>' +
+          '<span class="iname">' + esc(r.name || "(unnamed)") + "</span>" +
+          '<span class="ibadge ' + cls + '">' + badge + "</span></div>" +
+          '<div class="isub">Line ' + r.line + " · " + detail + "</div></div>";
+      }).join("")
+    : '<p class="note" style="margin-top:12px">Nothing in this file would change anything.</p>';
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-csvrow]"), function (box) {
+    box.onchange = function () {
+      shown[Number(box.getAttribute("data-csvrow"))].include = box.checked;
+    };
+  });
+
+  $("csvReviewSec").style.display = "";
+}
+
+$("csvCancelBtn").onclick = function () {
+  resetCsvReview();
+  toast("Import cancelled — nothing was changed");
+};
+
+$("csvConfirmBtn").onclick = function () {
+  if (!pendingCsv) return;
+  var chosen = pendingCsv.rows.filter(function (r) { return r.include && !r.problems.length; });
+  if (!chosen.length) { toast("Nothing is ticked to import"); return; }
+
+  // Taken before a record is written, and what Undo restores.
+  var snapshot = JSON.parse(JSON.stringify(state));
+  var made = WM.applyCsvEntity(state, pendingCsv, deviceId);
+  var entity = pendingCsv.entity;
+
+  importUndo = {
+    state: snapshot,
+    summary: { rows: made.new + made.updated + made.deleted },
+    fileName: pendingCsv.fileName
+  };
+  resetCsvReview();
+  commit();
+
+  var parts = [];
+  if (made.new) parts.push(made.new + " added");
+  if (made.updated) parts.push(made.updated + " changed");
+  if (made.deleted) parts.push(made.deleted + " removed");
+  toast("Imported " + entity + (parts.length ? " — " + parts.join(", ") : ""));
+};
+
 function renderImportState() {
   var btn = $("undoImportBtn");
   if (!importUndo) { btn.style.display = "none"; return; }
