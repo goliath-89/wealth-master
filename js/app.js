@@ -3485,6 +3485,19 @@ $("wipeBtn").onclick = function () {
 
 // Last line of defence for the manual-export browsers: never let the tab close on
 // unsaved work without the browser's own confirmation.
+// Paper has no disclosure triangle, so every collapsed explanation is opened for the
+// print and put back afterwards.
+var reopenAfterPrint = [];
+window.addEventListener("beforeprint", function () {
+  reopenAfterPrint = Array.prototype.filter.call(
+    document.querySelectorAll("details.warnbox"), function (d) { return !d.open; });
+  reopenAfterPrint.forEach(function (d) { d.open = true; });
+});
+window.addEventListener("afterprint", function () {
+  reopenAfterPrint.forEach(function (d) { d.open = false; });
+  reopenAfterPrint = [];
+});
+
 window.addEventListener("beforeunload", function (e) {
   if (!dirty) return;
   if (fileHandle && filePermission === "granted") return;
