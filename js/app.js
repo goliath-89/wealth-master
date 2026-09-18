@@ -224,9 +224,20 @@ function renderWorth() {
       (change.pct === null ? "" : ' <span class="neu">' + esc(Math.abs(change.pct).toFixed(1)) + "%</span>");
   }
 
+  // Free cash plus investments: what is invested or ready to be, excluding the roof over
+  // your head and money locked in EPF. The strip already agrees with the total above it.
+  var cats = WM.categoryTotals(state, WM.currentPeriod());
+  var investable = 0;
+  cats.categories.forEach(function (c) {
+    if (c.key === "freeCash" || c.key === "investments") investable += c.total;
+  });
+
   $("worthKpis").innerHTML =
-    '<div class="kpi"><div class="k">Net worth' + (now.partial ? '<span class="stale-mark">*</span>' : "") +
-      '</div><div class="v">' + esc(fmtRM(now.net)) + '</div><div class="d">' + deltaHtml + "</div></div>" +
+    '<div class="kpi primary"><div class="k">Net worth' + (now.partial ? '<span class="stale-mark">*</span>' : "") +
+      '</div><div class="v">' + esc(fmtRM(now.net)) + '</div><div class="d">' + deltaHtml + "</div>" +
+      '<div class="kpi-split"><div class="k">Investable assets</div>' +
+      '<div class="v">' + esc(fmtRM(investable)) + "</div>" +
+      '<div class="d neu">Free cash and investments</div></div></div>' +
     '<div class="kpi"><div class="k">Assets</div><div class="v">' + esc(fmtRM(now.assets)) + "</div></div>" +
     '<div class="kpi"><div class="k">Liabilities</div><div class="v">' + esc(fmtRM(now.liabilities)) + "</div></div>" +
     '<div class="kpi"><div class="k">Liquid</div><div class="v">' + esc(fmtRM(now.liquid)) +
@@ -345,7 +356,11 @@ function drawWorthChart(pts) {
   var W = 720, H = 240, ml = 62, mr = 12, mt = 12, mb = 28;
   var pw = W - ml - mr, ph = H - mt - mb;
 
-  var vals = pts.map(function (p) { return p.net; });
+  // Assets above the line, liabilities below it, net worth between them. Three shapes of
+  // the same month, so a rise can be read as growth or as debt paid down.
+  var vals = pts.map(function (p) { return p.net; })
+    .concat(pts.map(function (p) { return p.assets; }))
+    .concat(pts.map(function (p) { return -p.liabilities; }));
   var lo = Math.min.apply(null, vals.concat([0]));
   var hi = Math.max.apply(null, vals.concat([0]));
   if (hi === lo) { hi = lo + 1; }
@@ -368,6 +383,14 @@ function drawWorthChart(pts) {
       '" stroke="currentColor" stroke-width="1" opacity="0.35"></line>';
   }
 
+  function band(valueOf, fill) {
+    var top = pts.map(function (p, i) { return X(i).toFixed(1) + "," + Y(valueOf(p)).toFixed(1); }).join(" L");
+    return '<path d="M' + top + " L" + X(pts.length - 1).toFixed(1) + "," + Y(0).toFixed(1) +
+      " L" + X(0).toFixed(1) + "," + Y(0).toFixed(1) + '" fill="' + fill + '" stroke="none"></path>';
+  }
+  body += band(function (p) { return p.assets; }, "var(--accent-tint)");
+  body += band(function (p) { return -p.liabilities; }, "var(--bad-tint)");
+
   var d = pts.map(function (p, i) { return X(i).toFixed(1) + "," + Y(p.net).toFixed(1); }).join(" L");
   body += '<path d="M' + d + '" fill="none" stroke="var(--accent)" stroke-width="2" ' +
     'stroke-linejoin="round" stroke-linecap="round"></path>';
@@ -389,7 +412,15 @@ function drawWorthChart(pts) {
   });
 
   el.innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
-    'role="img" aria-label="Net worth trend">' + body + "</svg>";
+    'role="img" aria-label="Net worth, with assets and liabilities as bands">' + body + "</svg>" +
+    '<div class="legend"><span class="lg"><span class="lgd" style="background:var(--accent)"></span>' +
+    "Net worth</span>" +
+    '<span class="lg"><span class="lgd" style="background:var(--accent-tint)"></span>Assets</span>' +
+    '<span class="lg"><span class="lgd" style="background:var(--bad-tint)"></span>Liabilities</span>' +
+    (pts.some(function (p) { return p.partial; })
+      ? '<span class="lg"><span class="lgd" style="border:2px solid var(--warn);background:var(--bg)"></span>' +
+        "Carried forward</span>"
+      : "") + "</div>";
 }
 
 function shortRM(n) {
@@ -1611,33 +1642,23 @@ function arcPath(cx, cy, rOut, rIn, a0, a1) {
     " A" + rIn + "," + rIn + " 0 " + big + " 0 " + p4[0].toFixed(2) + "," + p4[1].toFixed(2) + " Z";
 }
 
-function renderAllocation() {
-  var period = WM.currentPeriod();
-  var sel = $("allocDim");
-  if (!sel.options.length) {
-    sel.innerHTML = Object.keys(WM.DIMENSIONS).map(function (k) {
-      return '<option value="' + esc(k) + '">' + esc(WM.DIMENSIONS[k].label) + "</option>";
-    }).join("");
-  }
-  var alloc = WM.allocation(state, period, sel.value || "class");
-
-  if (!alloc.slices.length) {
-    $("allocChart").innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
+function drawDonut(chartId, legendId, slices, total, centre, ariaLabel) {
+  if (!slices.length) {
+    $(chartId).innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
       "Nothing recorded to allocate yet.</div>";
-    $("allocLegend").innerHTML = "";
+    $(legendId).innerHTML = "";
     return;
   }
-
   var W = 300, H = 220, cx = 150, cy = 110, rO = 88, rI = 58;
   var body = "";
-  if (alloc.slices.length === 1) {
+  if (slices.length === 1) {
     // A single slice as a full circle — an arc from 0 to 360 degenerates to nothing.
     body += '<circle cx="' + cx + '" cy="' + cy + '" r="' + ((rO + rI) / 2) +
       '" fill="none" stroke="' + sliceColour(0) + '" stroke-width="' + (rO - rI) + '"></circle>';
   } else {
     var angle = 0;
-    alloc.slices.forEach(function (s, i) {
-      var sweep = s.value / alloc.total * 360;
+    slices.forEach(function (s, i) {
+      var sweep = s.value / total * 360;
       if (sweep <= 0) return;
       var gap = sweep > 3 ? 1 : 0;
       body += '<path d="' + arcPath(cx, cy, rO, rI, angle, angle + sweep - gap) +
@@ -1646,18 +1667,47 @@ function renderAllocation() {
     });
   }
   body += '<text x="' + cx + '" y="' + (cy - 2) + '" text-anchor="middle" fill="currentColor" ' +
-    'style="font-size:17px;font-weight:600">' + esc(fmtRM(alloc.total)) + "</text>";
-  body += '<text x="' + cx + '" y="' + (cy + 16) + '" text-anchor="middle" class="axis-t">assets</text>';
+    'style="font-size:17px;font-weight:600">' + esc(fmtRM(total)) + "</text>";
+  body += '<text x="' + cx + '" y="' + (cy + 16) + '" text-anchor="middle" class="axis-t">' +
+    esc(centre) + "</text>";
 
-  $("allocChart").innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H +
+  $(chartId).innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H +
     '" preserveAspectRatio="xMidYMid meet" style="max-height:230px" role="img" ' +
-    'aria-label="Allocation by ' + esc(alloc.label) + '">' + body + "</svg>";
+    'aria-label="' + esc(ariaLabel) + '">' + body + "</svg>";
 
-  $("allocLegend").innerHTML = '<div class="legend">' + alloc.slices.map(function (s, i) {
+  $(legendId).innerHTML = '<div class="legend">' + slices.map(function (s, i) {
     return '<span class="lg"><span class="lgd" style="background:' + sliceColour(i) + '"></span>' +
       esc(s.label) + ' <span class="lgv">' + esc(s.share.toFixed(1)) + "% · " +
       esc(fmtRM(s.value)) + "</span></span>";
   }).join("") + "</div>";
+}
+
+// The categories of the strip, as a donut. Liabilities are not a slice of assets, so the
+// donut is of what is owned and the strip below keeps the subtraction.
+function renderCategoryDonut() {
+  var t = WM.categoryTotals(state, WM.currentPeriod());
+  var slices = t.categories.filter(function (c) { return c.total > 0; }).map(function (c) {
+    return { label: c.label, value: c.total, share: t.assets ? c.total / t.assets * 100 : 0 };
+  });
+  drawDonut("classChart", "classLegend", slices, t.assets, "assets", "Assets by category");
+}
+
+function renderAllocation() {
+  renderCategoryDonut();
+  var period = WM.currentPeriod();
+  var sel = $("allocDim");
+  if (!sel.options.length) {
+    sel.innerHTML = Object.keys(WM.DIMENSIONS).map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc(WM.DIMENSIONS[k].label) + "</option>";
+    }).join("");
+    // The donut beside this one is already by category, so the second view opens on a
+    // different question rather than drawing the same chart twice.
+    sel.value = "institution";
+  }
+  var alloc = WM.allocation(state, period, sel.value || "class");
+  $("allocTitle").textContent = "By " + alloc.label.charAt(0).toLowerCase() + alloc.label.slice(1);
+  drawDonut("allocChart", "allocLegend", alloc.slices, alloc.total, "assets",
+    "Allocation by " + alloc.label);
 }
 
 // Runway and savings rate share a home on the net worth screen: both answer "how solid

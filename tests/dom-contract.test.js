@@ -24,7 +24,7 @@ var appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
 var STATIC_IDS = [
   "a_arch", "a_name", "acctSave", "addAssetBtn", "addGoalBtn", "addInstBtn", "addLiabBtn",
   "allocChart", "allocDim", "allocLegend", "assetDelete", "assetErr", "assetList", "assetSave",
-  "assumptions", "c_balance", "c_instalment", "c_interest", "c_period", "c_result", "catStrip",
+  "assumptions", "c_balance", "c_instalment", "c_interest", "allocTitle", "c_period", "c_result", "catStrip", "classChart", "classLegend",
   "dec_amount", "dec_growth", "decisionResult", "epfBalances", "epfContrib", "epfDividend",
   "epfRate", "epfSec", "epfSplitFields", "epfSplitResult", "epfYear", "feesList", "feesWrap",
   "fileLabel", "fileNote", "fileRow", "forecastChart", "forecastKpis", "forecastLegend",

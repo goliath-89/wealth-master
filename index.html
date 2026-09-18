@@ -108,11 +108,22 @@
     <div class="sec-h">
       <div class="sec-t">Allocation</div>
       <div class="spacer"></div>
+      <label class="fl" for="allocDim" style="margin:0 8px 0 0">Second view</label>
       <select id="allocDim" style="width:auto;min-width:150px"></select>
     </div>
     <div class="card">
-      <div id="allocChart"></div>
-      <div id="allocLegend"></div>
+      <div class="donuts">
+        <div class="donut">
+          <div class="donut-t">By category</div>
+          <div id="classChart"></div>
+          <div id="classLegend"></div>
+        </div>
+        <div class="donut">
+          <div class="donut-t" id="allocTitle">By class</div>
+          <div id="allocChart"></div>
+          <div id="allocLegend"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="sec">
