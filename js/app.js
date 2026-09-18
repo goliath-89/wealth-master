@@ -452,9 +452,13 @@ function renderRowPanel() {
   bindAll("[data-edit-hold]", "data-edit-hold", openHold);
   bindAll("[data-edit-asset]", "data-edit-asset", openAsset);
   bindAll("[data-edit-liab]", "data-edit-liab", openLiab);
-  // "Record this month" is the same cell the sheet edits, not a second way in.
+  // "Record this month" is the same cell the sheet edits, not a second way in. The id is
+  // captured here rather than read from openRow when the button is pressed: the panel can
+  // be closed by then, and a handler that reads global state later is a null waiting to
+  // happen.
+  var recordId = openRow.id;
   wire("panelRecord", function () {
-    var cell = $("cell_" + openRow.id);
+    var cell = $("cell_" + recordId);
     if (!cell) { toast("This figure is not typed in directly"); return; }
     cell.focus();
     cell.select();

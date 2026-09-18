@@ -104,7 +104,9 @@ function loadApp(seedState, beforeApp) {
   // Same reason for stylesheets: inline each linked file as a <style> block, so tests that
   // assert on declared CSS (NFR-6 touch targets) read what the browser actually applies.
   htmlNoScripts = htmlNoScripts.replace(/<link rel="stylesheet" href="([^"]+)">/g, function (_, href) {
-    return "<style data-src=\"" + href + "\">" + fs.readFileSync(path.join(ROOT, href), "utf8") + "</style>";
+    // The ?v= marker is for browsers, not for the file system (docs/parallel-work.md).
+    var file = href.split("?")[0];
+    return "<style data-src=\"" + href + "\">" + fs.readFileSync(path.join(ROOT, file), "utf8") + "</style>";
   });
   var dom = new JSDOM(htmlNoScripts, {
     url: "http://localhost/",

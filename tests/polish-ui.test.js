@@ -112,3 +112,24 @@ test("the type stack does not fall back to the usual web-app faces", function ()
   assert.match(body, /font-family:system-ui/);
   assert.equal(/Roboto|Arial/.test(body), false);
 });
+
+// Browsers cache js/ and css/ independently of index.html, so a return visitor could run
+// last week's app.js against today's markup — which is exactly how a close button came to
+// render and do nothing. Every asset URL carries a marker the deploy replaces with the
+// commit being deployed, so the pair can never be mismatched.
+test("every local script and stylesheet is versioned", function () {
+  var html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  var unversioned = [];
+  var re = /(?:<script src|<link rel="stylesheet" href)="((?:js|css)\/[^"]+)"/g, m;
+  while ((m = re.exec(html))) {
+    if (m[1].indexOf("?v=") === -1) unversioned.push(m[1]);
+  }
+  assert.deepEqual(unversioned, [], "these would be served from a stale cache");
+});
+
+test("the deploy replaces the marker rather than shipping the local one", function () {
+  var workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "pages.yml"), "utf8");
+  assert.match(workflow, /sed -i "s\/\?v=dev\//, "the deploy stamps the URLs");
+  assert.match(workflow, /GITHUB_SHA/, "with the commit it is deploying");
+  assert.match(workflow, /an asset URL was left unstamped/, "and fails if one is missed");
+});
