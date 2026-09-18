@@ -44,6 +44,43 @@
     };
   }
 
+  // A holding's position converted to ringgit, for anything that reports a ringgit total.
+  //
+  // positionFor returns the figure as it was recorded, which for a foreign account is in
+  // that account's own currency. Adding that straight into a ringgit total is wrong by the
+  // whole exchange rate — and worse, it made two screens disagree: net worth left an
+  // unconvertible USD holding out while the allocation donut counted it as ringgit.
+  // Every cross-holding total goes through here instead, and drops what it cannot convert
+  // exactly as net worth does (FR-9.6), rather than guessing a rate of 1.
+  function basePositionFor(state, holdingId, period) {
+    var pos = positionFor(state, holdingId, period);
+    if (!pos) return null;
+    var h = ent.byId(state.holdings, holdingId);
+    var acct = h ? ent.byId(state.accounts, h.accountId) : null;
+    var money = fx.toBase(state, h || { id: holdingId }, acct, period, pos.balance);
+    return {
+      balance: money.amount,
+      stale: pos.stale,
+      sourcePeriod: pos.sourcePeriod,
+      monthsStale: pos.monthsStale,
+      currency: money.currency,
+      nativeBalance: money.native,
+      fxRate: money.rate,
+      fxStale: money.fxStale,
+      convertible: money.convertible
+    };
+  }
+
+  // The same conversion for a figure that is not a balance — income, a contribution — on
+  // a holding whose account is foreign. Returns null when there is no rate for the month.
+  function toBaseFor(state, holdingId, period, nativeAmount) {
+    if (nativeAmount === null || nativeAmount === undefined) return null;
+    var h = ent.byId(state.holdings, holdingId);
+    var acct = h ? ent.byId(state.accounts, h.accountId) : null;
+    var money = fx.toBase(state, h || { id: holdingId }, acct, period, nativeAmount);
+    return money.convertible ? money.amount : null;
+  }
+
   // Holdings whose account is live and unarchived. Archived accounts keep their history
   // but drop out of current totals (FR-1.5).
   function contributingHoldings(state) {
@@ -208,6 +245,8 @@
     monthsBetween: monthsBetween,
     nextPeriod: nextPeriod,
     positionFor: positionFor,
+    basePositionFor: basePositionFor,
+    toBaseFor: toBaseFor,
     contributingHoldings: contributingHoldings,
     positionAt: positionAt,
     equityFor: equityFor,
