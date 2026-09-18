@@ -20,7 +20,8 @@ var ROOT = path.join(__dirname, "..");
 function moduleFiles() {
   var html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   var out = [];
-  var re = /<script src="(js\/[^"]+)"><\/script>/g, m;
+  // The src carries a cache-busting marker; the module list wants the path.
+  var re = /<script src="(js\/[^"?]+)(?:\?[^"]*)?"><\/script>/g, m;
   while ((m = re.exec(html))) {
     if (m[1] !== "js/app.js" && m[1] !== "js/filestore.js") out.push(m[1]);
   }

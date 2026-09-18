@@ -36,7 +36,7 @@
   object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Wealth Master</title>
-<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/app.css?v=dev">
 </head>
 <body>
 <nav class="side" aria-label="Sections">
@@ -45,8 +45,9 @@
   <button class="tab" data-v="accounts"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg><span class="tab-l">Accounts</span><span class="tab-amt" id="navAssets"></span></button>
   <button class="tab" data-v="loans"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="12" r="5.5"/><circle cx="15" cy="12" r="5.5"/></svg><span class="tab-l">Loans</span><span class="tab-amt" id="navDebts"></span></button>
   <div class="side-sep" aria-hidden="true"></div>
-  <button class="tab" data-v="month"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span class="tab-l">Month-end</span><span class="tab-s" aria-hidden="true">Month</span></button>
+  <button class="tab" data-v="month"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span class="tab-l">Month-end</span><span class="tab-s" aria-hidden="true">Month</span><span class="tab-due" id="navDue" hidden></span></button>
   <button class="tab" data-v="forecast"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 18 10 7l3 7 7-10"/></svg><span class="tab-l">Forecast</span></button>
+  <button class="tab" data-v="recap"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 6 6 12l5 6"/><path d="M18 6l-5 6 5 6"/></svg><span class="tab-l">Recap</span></button>
   <div class="side-sep" aria-hidden="true"></div>
   <button class="tab" data-v="tax"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3h8l4 4v14H7z"/><path d="M10 12h6M10 16h6"/></svg><span class="tab-l">Tax</span></button>
   <button class="tab" data-v="data"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg><span class="tab-l">Data</span></button>
@@ -66,6 +67,10 @@
 <div class="wrap">
 
 <div class="view on" id="v-worth">
+  <div class="sec">
+    <div id="worthHero"></div>
+    <div id="catStrip"></div>
+  </div>
   <div class="sec">
     <div class="kpis" id="worthKpis"></div>
   </div>
@@ -107,11 +112,22 @@
     <div class="sec-h">
       <div class="sec-t">Allocation</div>
       <div class="spacer"></div>
+      <label class="fl" for="allocDim" style="margin:0 8px 0 0">Second view</label>
       <select id="allocDim" style="width:auto;min-width:150px"></select>
     </div>
     <div class="card">
-      <div id="allocChart"></div>
-      <div id="allocLegend"></div>
+      <div class="donuts">
+        <div class="donut">
+          <div class="donut-t">By category</div>
+          <div id="classChart"></div>
+          <div id="classLegend"></div>
+        </div>
+        <div class="donut">
+          <div class="donut-t" id="allocTitle">By class</div>
+          <div id="allocChart"></div>
+          <div id="allocLegend"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="sec">
@@ -135,9 +151,10 @@
     </div>
   </div>
   <div class="sec">
-    <div class="warnbox">
-      Leave a field blank if you have not got the figure — blank means <b>not recorded</b>, which is different from zero. Only balance is needed for net worth; contributions and income let the app work out what you actually earned.
-    </div>
+    <details class="warnbox">
+      <summary>Blank means <b>not recorded</b>, which is not the same as zero.</summary>
+      <p>Leave a field blank if you have not got the figure. Only balance is needed for net worth; contributions and income let the app work out what you actually earned.</p>
+    </details>
   </div>
 </div>
 
@@ -146,6 +163,8 @@
     <div class="sec-h">
       <div class="sec-t">Institutions and accounts</div>
       <div class="spacer"></div>
+      <label class="fl" for="sheetPeriod" style="margin:0 8px 0 0">Editing</label>
+      <input type="month" id="sheetPeriod" style="width:auto;min-width:150px">
       <button class="btn sm" id="addInstBtn">+ Institution</button>
     </div>
     <div id="tree"></div>
@@ -242,17 +261,19 @@
     <div id="loanList"></div>
   </div>
   <div class="sec">
-    <div class="warnbox">
-      <b>Check the instalment.</b> These schedules come from the terms you entered, and the arithmetic is verified against worked examples. The quickest confirmation that <em>your</em> figures are right is the monthly instalment: it depends on principal, rate, tenure and basis together, so if the figure above matches your actual monthly debit, all four are almost certainly correct. Enter it under <b>Check against a statement</b> when editing the loan. An itemised interest breakdown, if you ever get one, would confirm the rest basis too. See <code>docs/loan-validation.md</code>.
-    </div>
+    <details class="warnbox">
+      <summary><b>Check the instalment</b> against your actual monthly debit — it confirms all four terms at once.</summary>
+      <p>These schedules come from the terms you entered, and the arithmetic is verified against worked examples. The monthly instalment depends on principal, rate, tenure and basis together, so if the figure above matches your actual monthly debit, all four are almost certainly correct. Enter it under <b>Check against a statement</b> when editing the loan. An itemised interest breakdown, if you ever get one, would confirm the rest basis too. See <code>docs/loan-validation.md</code>.</p>
+    </details>
   </div>
 </div>
 
 <div class="view" id="v-forecast">
   <div class="sec">
-    <div class="warnbox">
-      <b>Illustrative only.</b> These are arithmetic projections of the assumptions below, not predictions. Markets do not deliver a steady rate, and the range between scenarios is a better guide than any single line.
-    </div>
+    <details class="warnbox">
+      <summary><b>Illustrative only.</b> These are arithmetic projections of the assumptions below, not predictions.</summary>
+      <p>Markets do not deliver a steady rate, and the range between scenarios is a better guide than any single line.</p>
+    </details>
   </div>
   <div class="sec">
     <div class="sec-h">
@@ -311,11 +332,40 @@
   </div>
 </div>
 
+<div class="view" id="v-recap">
+  <div class="sec">
+    <div class="sec-h">
+      <div class="sec-t">Compare two months</div>
+      <div class="spacer"></div>
+      <label class="fl" for="recapFrom" style="margin:0 8px 0 0">From</label>
+      <input type="month" id="recapFrom" style="width:auto;min-width:150px">
+      <label class="fl" for="recapTo" style="margin:0 8px 0 12px">To</label>
+      <input type="month" id="recapTo" style="width:auto;min-width:150px">
+    </div>
+    <div id="recapSummary"></div>
+  </div>
+  <div class="sec">
+    <div class="sec-h"><div class="sec-t">What moved it</div></div>
+    <div class="card" id="recapParts"></div>
+  </div>
+  <div class="sec">
+    <div class="sec-h"><div class="sec-t">Line by line</div></div>
+    <div class="card" id="recapLines"></div>
+  </div>
+  <div class="sec">
+    <details class="warnbox">
+      <summary><b>Market movement is what the balances did that the flows do not explain.</b></summary>
+      <p>It is real growth, but also any contribution or withdrawal that was never recorded. A month where you paid money in without noting it will read as performance here, which is why it is named as a residual rather than as growth.</p>
+    </details>
+  </div>
+</div>
+
 <div class="view" id="v-tax">
   <div class="sec">
-    <div class="warnbox">
-      <b>Contributions, not tax.</b> This sums what you actually paid into holdings you have tagged. It does not work out your tax, and it cannot know whether a relief applies to you. Relief limits change between assessment years — confirm every figure against LHDN for the year you are filing.
-    </div>
+    <details class="warnbox">
+      <summary><b>Contributions, not tax.</b> It does not work out your tax — confirm every figure against LHDN for the year you are filing.</summary>
+      <p>This sums what you actually paid into holdings you have tagged, and it cannot know whether a relief applies to you. Relief limits change between assessment years.</p>
+    </details>
   </div>
   <div class="sec">
     <div class="sec-h">
@@ -454,16 +504,18 @@
     </div>
   </div>
 
-  <div class="sec">
-    <div class="warnbox">
-      Phase P1 in progress — accounts and holdings are recorded here. Monthly valuations, net worth and charts are still to come. See <code>docs/feature-plan.md</code>.
-    </div>
+</div>
+
+</div>
+</div>
+
+<aside class="drawer" id="rowPanel" hidden aria-label="Row detail">
+  <div class="drawer-h">
+    <div class="drawer-t" id="rowPanelTitle" tabindex="-1"></div>
+    <button class="iconbtn" id="rowPanelClose" aria-label="Close detail">&times;</button>
   </div>
-
-</div>
-
-</div>
-</div>
+  <div id="rowPanelBody"></div>
+</aside>
 
 <div class="modal-bg" id="importModal">
   <div class="modal">
@@ -650,7 +702,7 @@
         <input type="text" inputmode="decimal" id="s_cost" placeholder="—">
       </div>
       <div class="fitem">
-        <label class="fl" for="s_value">Current value</label>
+        <label class="fl" for="s_value">Value <span id="s_valueMonth"></span></label>
         <input type="text" inputmode="decimal" id="s_value" placeholder="—">
       </div>
       <div class="fitem" style="grid-column:1/-1">
@@ -714,8 +766,13 @@
         <label class="fl" for="l_instalment">Monthly instalment</label>
         <input type="text" inputmode="decimal" id="l_instalment" placeholder="—">
       </div>
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="l_balance">Outstanding balance <span id="l_balanceMonth"></span></label>
+        <input type="text" inputmode="decimal" id="l_balance" placeholder="—">
+        <p class="note" style="margin-top:6px">What is still owed at the end of that month. Blank means <b>not recorded</b>, which is different from zero.</p>
+      </div>
     </div>
-    <p class="note" style="margin-top:10px">Net worth uses the outstanding balance you enter each month on the Month tab. These terms drive the schedule on the Loans tab.</p>
+    <p class="note" style="margin-top:10px">The balance above is this month's figure — the same one the sheet and the Month-end screen record. These terms drive the schedule on the Loans tab.</p>
 
     <hr class="hr">
     <div class="sec-t" style="margin-bottom:8px">Check against a statement</div>
@@ -795,6 +852,11 @@
         <label class="fl" for="h_epf">EPF account</label>
         <select id="h_epf"></select>
       </div>
+      <div class="fitem" style="grid-column:1/-1">
+        <label class="fl" for="h_balance">Balance <span id="h_balanceMonth"></span></label>
+        <input type="text" inputmode="decimal" id="h_balance" placeholder="—">
+        <p class="note" style="margin-top:6px">Leave blank if you have not got the figure for this month. Blank means <b>not recorded</b>, which is different from zero.</p>
+      </div>
       <div class="fitem"><label class="chk"><input type="checkbox" id="h_units"> Unit-based</label></div>
       <div class="fitem">
         <label class="fl" for="h_fixed">Fixed unit price</label>
@@ -816,29 +878,31 @@
 
 <div class="snack" id="snack"><span id="snackMsg"></span></div>
 
-<script src="js/schema.js"></script>
-<script src="js/store.js"></script>
-<script src="js/migrate-funddesk.js"></script>
-<script src="js/import-guard.js"></script>
-<script src="js/csv.js"></script>
-<script src="js/filestore.js"></script>
-<script src="js/entities.js"></script>
-<script src="js/valuations.js"></script>
-<script src="js/networth.js"></script>
-<script src="js/loans.js"></script>
-<script src="js/analytics.js"></script>
-<script src="js/forecast.js"></script>
-<script src="js/decisions.js"></script>
-<script src="js/goals.js"></script>
-<script src="js/strategy.js"></script>
-<script src="js/relief.js"></script>
-<script src="js/units.js"></script>
-<script src="js/epf.js"></script>
-<script src="js/series.js"></script>
-<script src="js/xlsx.js"></script>
-<script src="js/sheet-import.js"></script>
-<script src="js/fx.js"></script>
-<script src="js/ui-shell.js"></script>
-<script src="js/app.js"></script>
+<script src="js/schema.js?v=dev"></script>
+<script src="js/store.js?v=dev"></script>
+<script src="js/migrate-funddesk.js?v=dev"></script>
+<script src="js/import-guard.js?v=dev"></script>
+<script src="js/csv.js?v=dev"></script>
+<script src="js/filestore.js?v=dev"></script>
+<script src="js/entities.js?v=dev"></script>
+<script src="js/valuations.js?v=dev"></script>
+<script src="js/networth.js?v=dev"></script>
+<script src="js/loans.js?v=dev"></script>
+<script src="js/analytics.js?v=dev"></script>
+<script src="js/forecast.js?v=dev"></script>
+<script src="js/decisions.js?v=dev"></script>
+<script src="js/goals.js?v=dev"></script>
+<script src="js/strategy.js?v=dev"></script>
+<script src="js/relief.js?v=dev"></script>
+<script src="js/units.js?v=dev"></script>
+<script src="js/epf.js?v=dev"></script>
+<script src="js/series.js?v=dev"></script>
+<script src="js/xlsx.js?v=dev"></script>
+<script src="js/sheet-import.js?v=dev"></script>
+<script src="js/fx.js?v=dev"></script>
+<script src="js/categories.js?v=dev"></script>
+<script src="js/recap.js?v=dev"></script>
+<script src="js/ui-shell.js?v=dev"></script>
+<script src="js/app.js?v=dev"></script>
 </body>
 </html>

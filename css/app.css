@@ -38,10 +38,13 @@ html[data-theme="light"]{
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{
   background:var(--bg);color:var(--tx);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  font-size:15px;line-height:1.5;padding-bottom:env(safe-area-inset-bottom);
-  -webkit-font-smoothing:antialiased;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",
+    "Helvetica Neue",sans-serif;
+  font-size:15px;line-height:1.55;padding-bottom:env(safe-area-inset-bottom);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
+/* Figures line up in columns wherever they are compared, which is everywhere. */
+.v,.wv,.strip-v,.srow-v,.hero-v,.tab-amt,.lgv,td,.lsum .v{font-variant-numeric:tabular-nums}
 /* ---- app shell (P5.1) -------------------------------------------------------------
    One set of .tab buttons serves both layouts: a bottom bar on phones and tablets, a
    left sidebar from 1024px. The tab switcher in app.js and every test that clicks
@@ -74,7 +77,7 @@ header .brand{white-space:nowrap}
 .side::-webkit-scrollbar{display:none}
 .side-brand,.side-sep,.tab-amt{display:none}
 .tab{
-  flex:1 1 0;min-width:44px;min-height:58px;padding:6px 2px 4px;border:none;background:transparent;
+  position:relative;flex:1 1 0;min-width:44px;min-height:58px;padding:6px 2px 4px;border:none;background:transparent;
   color:var(--tx2);font-family:inherit;font-size:10.5px;font-weight:500;cursor:pointer;white-space:nowrap;overflow:hidden;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   border-top:2px solid transparent;transition:.15s;
@@ -120,14 +123,45 @@ svg.chart{max-height:380px}
   display:flex;align-items:center;justify-content:center;transition:.15s;
 }
 .iconbtn:hover{background:var(--surface2);color:var(--tx)}
+/* ---- headline and category strip (P5.2) ---- */
+.hero{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 36px;margin-bottom:16px}
+.hero-v{
+  font-size:clamp(34px,6vw,54px);font-weight:300;letter-spacing:-.02em;line-height:1.05;
+  font-variant-numeric:tabular-nums;
+}
+.hero-v .stale-mark{font-size:.42em;vertical-align:super;margin-left:2px}
+.hero-ds{display:flex;gap:28px;flex-wrap:wrap;padding-bottom:6px}
+.hero-dk{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3)}
+.hero-dv{font-size:15px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
+.hero-dv.up{color:var(--good)}
+.hero-dv.dn{color:var(--bad)}
+.hero-dv.neu{color:var(--tx3)}
+.strip{
+  display:flex;gap:26px;border-top:.5px solid var(--line);border-bottom:.5px solid var(--line);
+  padding:2px 0;overflow-x:auto;scrollbar-width:none;
+}
+.strip::-webkit-scrollbar{display:none}
+.strip-i{padding:12px 0;white-space:nowrap}
+.strip-k{font-size:12.5px;color:var(--tx2)}
+.strip-v{font-size:15px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
 .sec{margin:26px 0}
 .sec-h{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
 .sec-t{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx2)}
 .card{background:var(--surface);border:.5px solid var(--line);border-radius:var(--r2);padding:16px 18px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .kpi{background:var(--surface);border:.5px solid var(--line);border-radius:var(--r);padding:13px 15px}
 .kpi .k{font-size:11.5px;color:var(--tx2);font-weight:500}
-.kpi .v{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
+.kpi .v{font-size:clamp(16px,2.2vw,22px);font-weight:600;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* ---- dashboard (P5.3) ---- */
+.kpi.primary{grid-column:span 2;display:flex;flex-direction:column;gap:14px}
+.kpi.primary .v{font-size:clamp(22px,3.2vw,30px)}
+.kpi-split{padding-top:12px;border-top:.5px solid var(--line)}
+.kpi .d{font-size:12px;color:var(--tx2);margin-top:3px}
+.kpi .d .up,.kpi .d.up{color:var(--good)}
+.kpi .d .dn,.kpi .d.dn{color:var(--bad)}
+.kpi .d .neu,.kpi .d.neu{color:var(--tx3)}
+.donuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.donut-t{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);margin-bottom:6px}
 .note{font-size:12.5px;color:var(--tx3);line-height:1.65}
 .hr{height:.5px;background:var(--line);border:none;margin:16px 0}
 button,input{font-family:inherit;font-size:14px}
@@ -142,6 +176,23 @@ button,input{font-family:inherit;font-size:14px}
 .btn.dgr:hover{background:var(--bad-tint)}
 .row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
 .warnbox{background:var(--warn-tint);border:.5px solid var(--warn-line);border-radius:10px;padding:11px 14px;font-size:12.5px;color:var(--tx2);line-height:1.6}
+details.warnbox{padding:0}
+/* Block, not flex: a flex summary turns each inline child into a flex item and eats the
+   spaces around <b>, so "means <b>not recorded</b>" reads as one word. */
+details.warnbox summary{
+  padding:13px 36px 13px 14px;cursor:pointer;list-style:none;position:relative;min-height:44px;
+  display:block;
+}
+details.warnbox summary::-webkit-details-marker{display:none}
+details.warnbox summary::after{
+  content:"";position:absolute;right:16px;top:50%;width:7px;height:7px;margin-top:-5px;
+  border-right:1.5px solid var(--tx3);border-bottom:1.5px solid var(--tx3);
+  transform:rotate(45deg);transition:transform .15s;
+}
+details.warnbox[open] summary::after{transform:rotate(225deg);margin-top:-2px}
+details.warnbox summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:10px}
+details.warnbox p{padding:0 14px 12px;margin:0}
+details.warnbox b{color:var(--tx)}
 .dangerbox{background:var(--bad-tint);border:.5px solid var(--bad-line);border-radius:10px;padding:11px 14px;font-size:12.5px;color:var(--tx2);line-height:1.6}
 .pill.ok .dot{background:var(--good)}
 .pill.dirty .dot{background:var(--warn)}
@@ -164,6 +215,45 @@ button,input{font-family:inherit;font-size:14px}
 .losslist{margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--tx2);line-height:1.7}
 .view{display:none}
 .view.on{display:block}
+/* ---- holdings sheet (P5.4a) ---- */
+.sheet{background:var(--surface);border:.5px solid var(--line);border-radius:var(--r2);margin-bottom:14px;overflow:hidden}
+.sheet-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:.5px solid var(--line)}
+.sheet-total{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;margin-right:4px}
+.sheet-sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border-bottom:.5px solid var(--line)}
+.srow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:.5px solid var(--line);font-size:13.5px}
+.sheet-acct:last-child .srow:last-child{border-bottom:none}
+.srow-n{flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.srow-t{font-weight:500}
+.srow-sub{color:var(--tx3);font-size:12px}
+.srow-d{flex-basis:100%;display:flex;gap:10px;flex-wrap:wrap}
+.srow-c{width:170px;text-align:right;font-size:12.5px;flex-shrink:0}
+.srow-v{width:150px;text-align:right;font-variant-numeric:tabular-nums;font-weight:500;flex-shrink:0}
+.srow-a{width:78px;display:flex;justify-content:flex-end;flex-shrink:0}
+.srow-warn{color:var(--warn)}
+/* An editable cell reads as a figure until it is touched, then as a field. */
+.cellin{
+  width:100%;min-height:44px;padding:4px 8px;text-align:right;font-size:13.5px;font-weight:500;
+  font-variant-numeric:tabular-nums;border:.5px solid transparent;border-radius:8px;
+  background:transparent;color:var(--tx);appearance:none;transition:.12s;
+}
+.cellin:hover{border-color:var(--line2);background:var(--surface2)}
+.cellin:focus{border-color:var(--accent);background:var(--surface2);box-shadow:0 0 0 3px var(--accent-tint);outline:none}
+.cellin::placeholder{color:var(--tx3);font-weight:400}
+.cellin.badfield{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-tint)}
+.srow-v .cellin{margin:-4px 0}
+.srow-flat{color:var(--tx3)}
+.srow.sheet-cols{
+  padding:8px 14px;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--tx3);background:var(--surface2);
+}
+.srow.sub-total{background:var(--surface2);font-weight:600}
+/* A phone has no room for a change column beside the value: it moves under the name. */
+@media(max-width:639px){
+  .srow{flex-wrap:wrap}
+  .srow-c{width:auto;order:3;flex-basis:100%;text-align:left}
+  .srow-v{width:auto;margin-left:auto}
+  .srow.sheet-cols .srow-c{display:none}
+}
 .inst{margin-bottom:14px}
 .inst-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
 .inst-n{font-size:14.5px;font-weight:600}
@@ -174,9 +264,9 @@ button,input{font-family:inherit;font-size:14px}
 .tag{display:inline-block;font-size:10px;font-weight:600;padding:2.5px 7px;border-radius:5px;background:var(--surface3);color:var(--tx2)}
 .tag.good{background:var(--accent-tint);color:var(--good)}
 .tag.mute{opacity:.7}
-.empty{text-align:center;padding:36px 20px;color:var(--tx3)}
-.empty .et{font-size:14.5px;color:var(--tx2);margin-bottom:4px;font-weight:500}
-.empty .es{font-size:12.5px;margin-bottom:16px}
+.empty{text-align:center;padding:44px 24px;color:var(--tx3)}
+.empty .et{font-size:16px;color:var(--tx);margin-bottom:6px;font-weight:600;letter-spacing:-.01em}
+.empty .es{font-size:13px;margin-bottom:18px;max-width:42ch;margin-left:auto;margin-right:auto;line-height:1.6}
 label.fl{display:block;font-size:11.5px;font-weight:500;color:var(--tx2);margin-bottom:5px}
 /* month/date must be listed explicitly — they are not covered by [type=text] and
    default to roughly 24px, failing NFR-6 on a phone. */
@@ -275,4 +365,123 @@ tbody tr.paid td{color:var(--tx3)}
   box-shadow:0 10px 30px rgba(0,0,0,.45);max-width:calc(100vw - 32px);
 }
 .snack.on{transform:translateX(-50%) translateY(0)}
+
+.tab-due{
+  margin-left:auto;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;
+  background:var(--warn-tint);color:var(--warn);white-space:nowrap;
+}
+@media(max-width:1023px){
+  /* On the phone bar there is no room for words: a dot on the icon does the same job. */
+  .tab-due{
+    position:absolute;margin:0;top:6px;right:calc(50% - 16px);width:8px;height:8px;
+    padding:0;font-size:0;background:var(--warn);
+  }
+}
+
+/* ---- recap (P6) ---- */
+.rrow{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:.5px solid var(--line);font-size:13.5px}
+.rrow:last-child{border-bottom:none}
+.rrow-k{width:190px;flex-shrink:0}
+.rrow-b{flex:1;min-width:60px}
+.rrow-v{width:150px;text-align:right;font-variant-numeric:tabular-nums;flex-shrink:0}
+.rrow-v.up{color:var(--good)}
+.rrow-v.dn{color:var(--bad)}
+.rrow-total{border-top:.5px solid var(--line2);font-weight:600;margin-top:4px}
+.rbar{height:8px;background:var(--surface3);border-radius:99px;overflow:hidden}
+.rbar-f{height:100%;border-radius:99px}
+.rbar-f.up{background:var(--accent)}
+.rbar-f.dn{background:var(--bad)}
+.wline .wv.up{color:var(--good)}
+.wline .wv.dn{color:var(--bad)}
+@media(max-width:639px){
+  .rrow{flex-wrap:wrap;gap:6px 12px}
+  .rrow-k{width:auto;flex:1}
+  .rrow-v{width:auto;margin-left:auto}
+  .rrow-b{flex-basis:100%;order:3}
+}
+
+/* ---- row detail panel (P5.6) ---- */
+.srow-t{
+  font:inherit;font-weight:500;color:var(--tx);background:none;border:none;padding:4px 0;
+  cursor:pointer;text-align:left;border-bottom:1px solid transparent;
+}
+.srow-t:hover{border-bottom-color:var(--line2)}
+.srow-t:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.srow{cursor:default}
+/* display:flex would override the hidden attribute, which is how an empty panel came
+   to sit on every screen. The closed state wins. */
+.drawer[hidden]{display:none}
+.drawer{
+  position:fixed;z-index:90;background:var(--surface);border:.5px solid var(--line);
+  display:flex;flex-direction:column;overflow-y:auto;
+  left:0;right:0;bottom:0;max-height:86vh;border-radius:18px 18px 0 0;
+  padding:0 18px calc(18px + env(safe-area-inset-bottom));
+  box-shadow:0 -12px 40px rgba(0,0,0,.35);
+}
+@media(min-width:1024px){
+  body.panel-open .main{margin-right:390px}
+  .drawer{
+    left:auto;top:0;right:0;bottom:0;width:390px;max-height:none;border-radius:0;
+    padding:0 22px 22px;box-shadow:-12px 0 40px rgba(0,0,0,.3);
+  }
+}
+.drawer-h{
+  position:sticky;top:0;background:var(--surface);display:flex;align-items:flex-start;gap:10px;
+  padding:16px 0 12px;border-bottom:.5px solid var(--line);margin-bottom:14px;
+}
+.drawer-t{flex:1;min-width:0;font-size:19px;font-weight:600;letter-spacing:-.01em;word-break:break-word}
+.drawer-t:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.p-sub{font-size:12.5px;color:var(--tx3)}
+.p-value{font-size:30px;font-weight:300;margin-top:6px;font-variant-numeric:tabular-nums}
+.p-change{font-size:12.5px;color:var(--tx2);margin-top:2px}
+.p-figures{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:16px 0;
+  padding:14px 0;border-top:.5px solid var(--line);border-bottom:.5px solid var(--line)}
+.pf-k{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3)}
+.pf-v{font-size:17px;margin-top:3px;font-variant-numeric:tabular-nums}
+.pf-n{font-size:11.5px;color:var(--tx3);margin-top:2px}
+.p-sec{margin-top:18px}
+.p-t{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px}
+.spark{height:64px;width:100%}
+.ph{display:flex;align-items:baseline;gap:10px;padding:8px 0;border-bottom:.5px solid var(--line);font-size:13px}
+.ph:last-child{border-bottom:none}
+.ph-p{color:var(--tx2);width:78px;flex-shrink:0}
+.ph-x{color:var(--tx3);font-size:11.5px;flex:1;min-width:0}
+.ph-v{margin-left:auto;font-variant-numeric:tabular-nums}
+.p-actions{margin-top:20px}
+.p-actions .btn{flex:1}
+
+/* ---- polish (P5.5) ---- */
+.btn:focus-visible,.iconbtn:focus-visible,select:focus-visible,summary:focus-visible,
+.cellin:focus-visible,input[type=checkbox]:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
+}
+
+/* Motion is decoration here: every transition can go without losing meaning (NFR-9). */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    transition-duration:.01ms!important;animation-duration:.01ms!important;
+    animation-iteration-count:1!important;scroll-behavior:auto!important;
+  }
+}
+
+/* Printing is for a statement or an adviser: the screen's chrome goes, the figures stay,
+   every explanation is expanded because paper has no disclosure triangle, and the page
+   prints dark-on-white whichever theme is on screen. */
+@media print{
+  :root,html[data-theme="dark"],html[data-theme="light"]{
+    --bg:#fff;--side:#fff;--surface:#fff;--surface2:#fff;--surface3:#fff;
+    --line:#d7dbd8;--line2:#b9c0bc;--tx:#000;--tx2:#333;--tx3:#555;
+    --accent:#0b6b42;--on-accent:#fff;--accent-tint:#e6f2ec;
+    --good:#0b6b42;--bad:#8c1d16;--warn:#6b4700;--warn-tint:#fbf4e6;--warn-line:#d8c9a6;
+    --bad-tint:#fbeceb;--bad-line:#e0bcb9;
+  }
+  .side,header .iconbtn,.snack,.modal-bg,.drawer,.srow-a,.sheet-h .btn,.sheet-sub .btn,
+  #addInstBtn{display:none!important}
+  .main{margin-left:0}
+  .wrap{max-width:none;padding:0}
+  details.warnbox p{display:block!important}
+  .card,.kpi,.sheet,.srow{break-inside:avoid;box-shadow:none}
+  .cellin{border-color:transparent;background:transparent}
+  a[href]::after{content:""}
+}
 @media(min-width:1024px){.snack{bottom:calc(18px + env(safe-area-inset-bottom))}}

@@ -84,7 +84,13 @@ test("a holding with no income recorded shows no yield rather than zero", functi
 
 test("the allocation donut renders as inline SVG with a legend", function () {
   var f = seeded({ months: [{ balance: 75000, income: null }] });
-  var doc = helpers.loadApp(f.state).window.document;
+  var app = helpers.loadApp(f.state);
+  var doc = app.window.document;
+  // Since P5.3 this donut is the second view and opens on institution, because the donut
+  // beside it is already by category. Asset class is one choice of several.
+  var sel = doc.getElementById("allocDim");
+  sel.value = "class";
+  sel.dispatchEvent(new app.window.Event("change"));
 
   var svg = doc.querySelector("#allocChart svg");
   assert.ok(svg, "must be hand-rolled SVG, not a charting library");

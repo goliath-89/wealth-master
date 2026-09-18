@@ -24,28 +24,30 @@ var appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
 var STATIC_IDS = [
   "a_arch", "a_name", "acctSave", "addAssetBtn", "addGoalBtn", "addInstBtn", "addLiabBtn",
   "allocChart", "allocDim", "allocLegend", "assetDelete", "assetErr", "assetList", "assetSave",
-  "assumptions", "c_balance", "c_instalment", "c_interest", "c_period", "c_result",
+  "assumptions", "c_balance", "c_instalment", "c_interest", "allocTitle", "c_period", "c_result", "catStrip", "classChart", "classLegend",
   "concNote", "concWrap",
   "dec_amount", "dec_growth", "decisionResult", "epfBalances", "epfContrib", "epfDividend",
   "epfRate", "epfSec", "epfSplitFields", "epfSplitResult", "epfYear", "feesList", "feesWrap",
   "fileLabel", "fileNote", "fileRow", "forecastChart", "forecastKpis", "forecastLegend",
   "fxNote", "fxWrap",
-  "g_date", "g_name", "g_target", "goalDelete", "goalErr", "goalList", "goalSave", "h_epf",
-  "h_fee", "h_fixed", "h_relief", "h_units", "holdDelete", "holdErr", "holdSave", "horizon",
+  "g_date", "g_name", "g_target", "h_balance", "h_balanceMonth", "goalDelete", "goalErr", "goalList", "goalSave", "h_epf",
+  "h_fee", "h_fixed", "h_name", "h_relief", "h_units", "holdDelete", "holdErr", "holdModal",
+  "holdSave", "horizon",
   "i_name", "i_type", "importCancel", "importConfirm", "importModal", "importModalBody",
   "incomeChart", "incomeLegend", "incomeWrap", "instDelete", "instErr", "instModal", "instSave",
-  "kpis", "l_basis", "l_name", "l_principal", "l_rate", "l_tenure", "l_type", "liabDelete",
-  "liabErr", "liabSave", "loanList", "migrateFile", "monthActions", "monthErr", "monthRows",
-  "monthSummary", "navAssets", "navDebts", "navNet", "periodPick", "pidmNote", "pidmWrap", "realTerms", "reliefList",
-  "resetEpfSplitBtn", "resilience", "reviewCancelBtn", "reviewConfirmBtn", "reviewKeepNotes",
+  "kpis", "l_balance", "l_balanceMonth", "l_basis", "l_name", "l_principal", "l_rate", "l_tenure", "l_type", "liabDelete",
+  "liabErr", "liabList", "liabSave", "loanList", "migrateFile", "monthActions", "monthErr", "monthRows",
+  "monthSummary", "navAssets", "navDebts", "navDue", "navNet", "periodPick", "pidmNote", "pidmWrap", "realTerms", "reliefList",
+  "recapFrom", "recapLines", "recapParts", "recapSummary", "recapTo",
+  "resetEpfSplitBtn", "resilience", "rowPanel", "rowPanelBody", "rowPanelClose", "rowPanelTitle", "reviewCancelBtn", "reviewConfirmBtn", "reviewKeepNotes",
   "reviewNoneBtn", "reviewProblems", "reviewRows", "reviewSec", "reviewSummary", "s_acquired",
-  "s_class", "s_cost", "s_liab", "s_name", "s_value", "saveEpfRateBtn", "saveEpfSplitBtn",
+  "s_class", "s_cost", "s_liab", "s_name", "s_value", "s_valueMonth", "saveEpfRateBtn", "saveEpfSplitBtn",
   "saveLimitsBtn", "saveMonthBtn", "saveSettingsBtn", "sc_contrib", "sc_inv", "scenarioErr",
   "scenarioSave", "seriesChart", "seriesLegend", "seriesMetric", "seriesNote", "seriesWrap",
-  "set_concentration", "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetStatus", "showArchived",
+  "set_concentration", "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetPeriod", "sheetStatus", "showArchived",
   "snackMsg", "staleNote", "staleWrap", "strat_extra", "strategyResult", "strategyWrap",
-  "taxYear", "themeBtn", "topPeriod", "tree", "undoImportBtn", "v-forecast", "v-loans", "v-tax", "v-worth",
-  "worthChart", "worthKpis", "worthLines"
+  "taxYear", "themeBtn", "topPeriod", "tree", "undoImportBtn", "v-data", "v-forecast", "v-loans", "v-month", "v-recap", "v-tax", "v-worth",
+  "worthChart", "worthHero", "worthKpis", "worthLines"
 ];
 
 // Built by app.js at render time. Each entry is the literal the render code must still
@@ -55,10 +57,16 @@ var RENDERED_IDS = {
   connectNewBtn: 'id="connectNewBtn"',
   connectExistingBtn: 'id="connectExistingBtn"',
   firstInstBtn: 'id="firstInstBtn"',
+  panelRecord: 'id="panelRecord"',
+  panelSchedule: 'id="panelSchedule"',
   "epf_": 'id="epf_',
   "lim_": 'id="lim_',
   "mrow_": 'id="mrow_',
-  "m_": 'id="m_'
+  "m_": 'id="m_',
+  // One per openable sheet row (P5.6).
+  "open_": 'id="open_',
+  // One per editable sheet cell (P5.4b).
+  "cell_": 'id="cell_'
 };
 
 // Data attributes and classes that tests select by. Each must still be produced by
@@ -66,7 +74,7 @@ var RENDERED_IDS = {
 var ATTRIBUTE_HOOKS = [
   "data-v", "data-sched", "data-simpay", "data-simsettle", "data-edit-inst", "data-edit-acct",
   "data-edit-hold", "data-edit-asset", "data-edit-liab", "data-edit-goal", "data-edit-scenario",
-  "data-imp"
+  "data-imp", "data-row-id", "data-row-kind"
 ];
 var CLASS_HOOKS = [
   "tab", "view", "stale-mark", "yield", "up", "dn", "wline", "irow", "ibadge", "lg", "lgt", "tag"
