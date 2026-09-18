@@ -52,10 +52,13 @@
   // recorded month — the chart must break the line there, not draw it along the floor.
   function balancePoints(state, holdingId, ps) {
     return ps.map(function (p) {
-      var pos = nw.positionFor(state, holdingId, p);
+      // In ringgit, because the chart's axis is in ringgit and the lines are compared
+      // against each other. A month with no rate breaks the line rather than plotting a
+      // foreign figure against a ringgit scale.
+      var pos = nw.basePositionFor(state, holdingId, p);
       return {
         period: p,
-        value: pos ? pos.balance : null,
+        value: pos && pos.convertible ? pos.balance : null,
         stale: pos ? pos.stale : false,
         sourcePeriod: pos ? pos.sourcePeriod : null
       };
@@ -111,8 +114,13 @@
     (state.valuations || []).forEach(function (v) {
       if (v.deleted || !v.holdingId || !byId[v.holdingId]) return;
       if (!v.income) return;
+      // Income on a foreign account is paid in that currency. With no rate for the month
+      // there is no ringgit figure, so the band is omitted rather than stacked at face
+      // value into a total labelled RM.
+      var inRinggit = nw.toBaseFor(state, v.holdingId, v.period, v.income);
+      if (inRinggit === null) return;
       if (!index[v.period]) index[v.period] = {};
-      index[v.period][v.holdingId] = (index[v.period][v.holdingId] || 0) + v.income;
+      index[v.period][v.holdingId] = (index[v.period][v.holdingId] || 0) + inRinggit;
     });
 
     // Only holdings that ever paid something get a band; a fund that has paid nothing

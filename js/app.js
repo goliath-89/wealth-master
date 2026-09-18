@@ -153,11 +153,57 @@ function wire(id, fn) {
 
 // ---- net worth -------------------------------------------------------------
 
+// What the ringgit totals are resting on: holdings left out because no rate converts
+// them, and holdings converted at a rate carried from an earlier month. A total that
+// quietly omits a holding is worse than one that says which (FR-9.6).
+function renderFxNote(now) {
+  // Rates are read before deciding whether to show anything: two rates for one currency
+  // is worth saying even when every holding converted cleanly, because the total is then
+  // built on one of two figures that disagree.
+  var inForce = now ? WM.ratesInForce(state, WM.currentPeriod()) : [];
+  var disagreeing = inForce.filter(function (r) { return r.disagrees; });
+
+  if (!now || (!now.unconverted.length && !now.fxStaleCount && !disagreeing.length)) {
+    $("fxWrap").style.display = "none";
+    return;
+  }
+  $("fxWrap").style.display = "";
+
+  var parts = [];
+  if (now.unconverted.length) {
+    parts.push("<b>" + now.unconverted.length + " foreign holding" +
+      (now.unconverted.length === 1 ? " is" : "s are") + " not counted above.</b> " +
+      "Without a rate for the month there is no ringgit figure, and counting the balance " +
+      "as though it were ringgit would overstate it. Add a rate on the Month tab: " +
+      now.unconverted.map(function (u) {
+        return esc(u.name) + " (" + esc(u.currency) + " " +
+          esc(Number(u.native).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })) + ")";
+      }).join(", ") + ".");
+  }
+  if (now.fxStaleCount) {
+    var rates = inForce.filter(function (r) { return r.stale; });
+    parts.push(now.fxStaleCount + " holding" + (now.fxStaleCount === 1 ? " is" : "s are") +
+      " converted at a rate carried from an earlier month" +
+      (rates.length ? ": " + rates.map(function (r) {
+        return esc(r.currency) + " at " + esc(String(r.rate)) + " from " + esc(r.sourcePeriod);
+      }).join(", ") : "") + ". Rates move daily, so these figures are approximate.");
+  }
+  if (disagreeing.length) {
+    parts.push("<b>" + disagreeing.map(function (r) { return esc(r.currency); }).join(", ") +
+      " has more than one rate this month</b> (" +
+      disagreeing.map(function (r) {
+        return esc(String(r.low)) + " to " + esc(String(r.high));
+      }).join("; ") + "). They cannot both be right — check for a typo.");
+  }
+  $("fxNote").innerHTML = parts.join("<br><br>");
+}
+
 function renderWorth() {
   var pts = WM.series(state, WM.currentPeriod());
   if (!pts.length) {
     $("worthKpis").innerHTML = "";
     $("staleWrap").style.display = "none";
+    renderFxNote(null);
     $("worthChart").innerHTML = "";
     $("worthLines").innerHTML = '<div class="empty"><div class="et">No figures yet</div>' +
       '<div class="es">Record a month to see what you are worth.</div></div>';
@@ -197,6 +243,8 @@ function renderWorth() {
   } else {
     $("staleWrap").style.display = "none";
   }
+
+  renderFxNote(now);
 
   drawWorthChart(pts);
 
@@ -2204,6 +2252,14 @@ function openLiab(id) {
 
 // ---- month entry -----------------------------------------------------------
 
+// The same figure, in the currency it is actually held in. Used wherever a foreign
+// holding's own money is shown, so no screen ever labels USD as ringgit.
+function fmtNative(n, currency) {
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  return currency + " " + Number(n).toLocaleString("en-MY",
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function fmtRM(n) {
   if (n === null || n === undefined || isNaN(n)) return "—";
   return "RM " + Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2233,7 +2289,10 @@ function monthSubjects() {
     return {
       kind: "holding", id: h.id, name: h.name,
       context: (inst ? inst.name + " · " : "") + (acct ? acct.name : ""),
-      fields: WM.AMOUNT_FIELDS
+      fields: WM.AMOUNT_FIELDS,
+      // A foreign holding needs a rate before its balance can join any total (FR-9.6).
+      currency: WM.normCurrency(acct && acct.currency),
+      needsRate: WM.needsConversion(acct)
     };
   });
   WM.live(state.liabilities).forEach(function (l) {
@@ -2269,17 +2328,63 @@ function renderMonth() {
         contribution: "Added", withdrawal: "Withdrawn", income: "Income"
       }[f];
       var stored = existing && existing[f] !== null && existing[f] !== undefined ? existing[f] : null;
-      return '<div><label for="m_' + esc(h.id) + "_" + f + '">' + label + "</label>" +
+      // A foreign holding's figures are in its own currency, so they are neither labelled
+      // nor formatted as ringgit. Showing USD 10,000 as "RM 10,000" is the very confusion
+      // this feature exists to remove, and it would be the owner's own screen telling
+      // them the wrong thing.
+      var native = h.needsRate;
+      var shown = native
+        ? (stored === null ? "" : String(stored))
+        : WM.formatAmount(stored);
+      return '<div><label for="m_' + esc(h.id) + "_" + f + '">' + label +
+        (native ? " (" + esc(h.currency) + ")" : "") + "</label>" +
         '<input type="text" inputmode="decimal" id="m_' + esc(h.id) + "_" + f + '"' +
-        ' data-hold="' + esc(h.id) + '" data-field="' + f + '" value="' + esc(WM.formatAmount(stored)) + '"' +
+        ' data-hold="' + esc(h.id) + '" data-field="' + f + '"' +
+        (native ? ' data-native="1"' : "") +
+        ' value="' + esc(shown) + '"' +
         ' placeholder="—"></div>';
     }).join("");
 
+    // The rate sits with the figures it converts. Its placeholder carries the rate that
+    // would otherwise be used, so somebody leaving it blank can see what they are
+    // inheriting rather than discovering it on the net worth screen.
+    var rateField = "";
+    if (h.needsRate) {
+      var storedRate = existing && existing.fxRate ? existing.fxRate : null;
+      var carried = WM.isPeriod(period) ? WM.rateAt(state, h.id, period) : null;
+      var hint = storedRate ? "" : (carried && carried.stale
+        ? String(carried.rate) + " from " + carried.sourcePeriod
+        : "needed");
+      rateField = '<div><label for="m_' + esc(h.id) + '_fxRate">1 ' + esc(h.currency) +
+        " in RM</label>" +
+        '<input type="text" inputmode="decimal" id="m_' + esc(h.id) + '_fxRate"' +
+        ' data-hold="' + esc(h.id) + '" data-field="fxRate" value="' +
+        esc(storedRate === null ? "" : String(storedRate)) + '"' +
+        ' placeholder="' + esc(hint) + '"></div>';
+    }
+
+    var fxNote = "";
+    if (h.needsRate) {
+      var r = WM.isPeriod(period) ? WM.rateAt(state, h.id, period) : null;
+      var bal = existing && existing.balance !== null && existing.balance !== undefined
+        ? existing.balance : null;
+      fxNote = r
+        ? '<div class="prev">Held in ' + esc(h.currency) + "." +
+          (bal !== null ? " " + esc(fmtNative(bal, h.currency)) +
+            " is " + esc(fmtRM(WM.convertAmount(bal, r.rate))) : "") +
+          (r.stale ? " at " + esc(String(r.rate)) + ", carried from " + esc(r.sourcePeriod) : "") +
+          "</div>"
+        : '<div class="prev">Held in ' + esc(h.currency) +
+          ". Without a rate this balance is left out of net worth rather than counted as ringgit.</div>";
+    }
+
     return '<div class="mrow' + (h.kind === "liability" ? " liab" : "") + '" id="mrow_' + esc(h.id) + '">' +
       '<div class="mrow-h"><span class="mrow-n">' + esc(h.name) + "</span>" +
-      '<span class="mrow-s">' + esc(h.context) + "</span></div>" +
-      '<div class="mgrid">' + fields + "</div>" +
-      (prior ? '<div class="prev">Last recorded: ' + esc(fmtRM(prior.balance)) +
+      '<span class="mrow-s">' + esc(h.context) +
+      (h.needsRate ? ' <span class="tag">' + esc(h.currency) + "</span>" : "") + "</span></div>" +
+      '<div class="mgrid">' + fields + rateField + "</div>" + fxNote +
+      (prior ? '<div class="prev">Last recorded: ' +
+        esc(h.needsRate ? fmtNative(prior.balance, h.currency) : fmtRM(prior.balance)) +
         " in " + esc(monthLabel(prior.period)) + "</div>" : "") +
       "</div>";
   }).join("");
@@ -2298,7 +2403,13 @@ function renderMonth() {
 // enough to be worse than the problem it solves. A field left mid-edit still saves,
 // because parseAmount reads the raw form too.
 function wireAmountFields() {
-  Array.prototype.forEach.call(document.querySelectorAll(".mgrid input"), function (el) {
+  // Amount boxes only. An exchange rate shares the grid but is a multiplier, not money:
+  // formatting it as currency turns 3.3 into "RM 3.30", which then fails to parse as a
+  // rate and rejects the whole row. jsdom never caught this because setting .value in a
+  // test fires no blur.
+  Array.prototype.forEach.call(
+    document.querySelectorAll('.mgrid input:not([data-field="fxRate"]):not([data-native="1"])'),
+    function (el) {
     el.onfocus = function () {
       var parsed = WM.parseAmount(el.value);
       if (parsed.error === null) el.value = WM.rawAmount(parsed.value);
@@ -2323,6 +2434,12 @@ $("saveMonthBtn").onclick = function () {
       var el = $("m_" + h.id + "_" + f);
       row[f] = el ? el.value : "";
     });
+    // Only sent when the row has a rate box at all, so a month save cannot blank the
+    // stored rate of a holding that is not foreign.
+    if (h.needsRate) {
+      var rateEl = $("m_" + h.id + "_fxRate");
+      if (rateEl) row.fxRate = rateEl.value;
+    }
     return row;
   });
 
