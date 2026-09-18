@@ -85,6 +85,9 @@
   <div class="sec" id="pidmWrap" style="display:none">
     <div class="warnbox" id="pidmNote"></div>
   </div>
+  <div class="sec" id="concWrap" style="display:none">
+    <div class="warnbox" id="concNote"></div>
+  </div>
   <div class="sec" id="feesWrap" style="display:none">
     <div class="sec-h"><div class="sec-t">What the fees cost</div></div>
     <div class="card">
@@ -344,7 +347,7 @@
   <div class="sec">
     <div class="sec-h"><div class="sec-t">Your monthly figures</div></div>
     <div class="card">
-      <p class="note" style="margin-bottom:14px">Two numbers that unlock the emergency fund runway and savings rate. Rough is fine — they are only used as denominators, and nothing else depends on them.</p>
+      <p class="note" style="margin-bottom:14px">Two numbers that unlock the emergency fund runway and savings rate. Rough is fine — they are only used as denominators, and nothing else depends on them. The third is the share of the portfolio one holding may reach before the net worth screen says so.</p>
       <div class="fgrid">
         <div class="fitem">
           <label class="fl" for="set_income">Take-home each month</label>
@@ -353,6 +356,10 @@
         <div class="fitem">
           <label class="fl" for="set_expenses">Spending each month</label>
           <input type="text" inputmode="decimal" id="set_expenses" placeholder="—">
+        </div>
+        <div class="fitem">
+          <label class="fl" for="set_concentration">Warn when one holding passes</label>
+          <input type="text" inputmode="decimal" id="set_concentration" placeholder="20%">
         </div>
       </div>
       <div class="row" style="margin-top:12px">

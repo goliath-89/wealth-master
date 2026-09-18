@@ -1681,6 +1681,13 @@ function renderSettingsFields() {
   if (document.activeElement !== $("set_expenses")) {
     $("set_expenses").value = WM.formatAmount(state.settings.monthlyExpenses);
   }
+  if (document.activeElement !== $("set_concentration")) {
+    // Blank shows the default as a placeholder rather than as a value, so the box says
+    // "nothing set, 20% is in force" instead of claiming the owner chose 20%.
+    var conc = state.settings.concentrationPct;
+    $("set_concentration").value = (conc === null || conc === undefined || conc === "")
+      ? "" : String(conc);
+  }
   var have = state.settings.monthlyIncome || state.settings.monthlyExpenses;
   $("settingsNote").textContent = have ? "" : "Neither is set yet.";
 }
@@ -1692,8 +1699,22 @@ $("saveSettingsBtn").onclick = function () {
     toast("Those must be numbers");
     return;
   }
+  // A share, not an amount — parsed as a plain number, and blank clears it back to the
+  // default rather than being stored as zero, which would flag every holding.
+  var raw = $("set_concentration").value.trim().replace(/%$/, "");
+  var conc = null;
+  if (raw !== "") {
+    var n = Number(raw);
+    if (isNaN(n) || n <= 0 || n > 100) {
+      toast("The warning share must be between 1 and 100");
+      return;
+    }
+    conc = n;
+  }
+
   state.settings.monthlyIncome = income.value;
   state.settings.monthlyExpenses = expenses.value;
+  state.settings.concentrationPct = conc;
   commit();
   toast("Saved");
 };
@@ -1707,6 +1728,42 @@ function renderPidm() {
       "</b> — " + esc(fmtRM(e.excess)) + " above the " + esc(fmtRM(e.limit)) + " limit";
   }).join("; ") + ". The limit applies per depositor per member bank, so splitting across " +
     "institutions restores full cover.";
+}
+
+// FR-4.8. One holding carrying too much of the portfolio is a risk the allocation donut
+// shows but does not name — a slice looks large only if you already know what large is.
+// This states the share, the threshold it passed, and what it is worth, in words as well
+// as position, because colour is never the only signal (NFR-9).
+function renderConcentration() {
+  var c = WM.concentration(state, WM.currentPeriod());
+  if (!c.over.length) { $("concWrap").style.display = "none"; return; }
+  $("concWrap").style.display = "";
+
+  var lead = c.over.length === 1
+    ? "<b>One holding is " + esc(String(c.over[0].sharePct)) + "% of the portfolio.</b> "
+    : "<b>" + esc(String(c.over.length)) + " holdings are each above " +
+      esc(String(c.thresholdPct)) + "% of the portfolio.</b> ";
+
+  var named = c.over.map(function (l) {
+    return "<b>" + esc(l.name) + "</b> at " + esc(String(l.sharePct)) + "% (" +
+      esc(fmtRM(l.balance)) + ")";
+  }).join("; ");
+
+  var tail = c.isDefault
+    ? " Measured against the default of " + esc(String(c.thresholdPct)) +
+      "%, which you can change on the Data tab."
+    : " Measured against your " + esc(String(c.thresholdPct)) + "% setting.";
+
+  // Shares are of what the total could count. Saying so matters: with a holding left out,
+  // every share here is larger than it would be once a rate brings that holding back in.
+  var excluded = c.excludedCount
+    ? " " + esc(String(c.excludedCount)) + " holding" + (c.excludedCount === 1 ? " is" : "s are") +
+      " left out of the total for want of an exchange rate, so these shares are of what" +
+      " could be counted."
+    : "";
+
+  $("concNote").innerHTML = lead + named + "." + tail + excluded +
+    " Concentration is not a mistake — it is a position. This only says how large it is.";
 }
 
 // ---- loan schedules --------------------------------------------------------
@@ -2905,6 +2962,7 @@ function render() {
   renderSeries();
   renderSettingsFields();
   renderPidm();
+  renderConcentration();
   renderMonth();
   renderTree();
   renderImportState();

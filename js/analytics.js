@@ -129,6 +129,58 @@
     return { dimension: dimension, label: dim.label, total: total, slices: slices };
   }
 
+  // Concentration: any single holding above a share of the portfolio (FR-4.8).
+  //
+  // The denominator is total assets, the same figure the net worth tile and the allocation
+  // donut report — so a share here can be read straight off the donut rather than being a
+  // third number that means something slightly different.
+  //
+  // The threshold is the owner's. Unset is not zero: a zero threshold would flag every
+  // holding, so a blank setting falls back to the default below and the UI says which one
+  // is in force. A holding no rate converts is not in the total and so is not in any
+  // share either — the count travels with the result rather than being silently absorbed.
+  var DEFAULT_CONCENTRATION_PCT = 20;
+
+  function concentrationThreshold(state) {
+    var raw = state.settings ? state.settings.concentrationPct : null;
+    var n = Number(raw);
+    if (raw === null || raw === undefined || raw === "" || isNaN(n) || n <= 0 || n > 100) {
+      return { pct: DEFAULT_CONCENTRATION_PCT, isDefault: true };
+    }
+    return { pct: n, isDefault: false };
+  }
+
+  function concentration(state, period) {
+    var t = concentrationThreshold(state);
+    var pos = nw.positionAt(state, period);
+    var total = pos.assets;
+
+    var lines = pos.lines.filter(function (l) {
+      return l.kind === "holding" && l.convertible !== false && l.balance > 0;
+    }).map(function (l) {
+      var share = total > 0 ? l.balance / total * 100 : 0;
+      return {
+        id: l.id,
+        name: l.name,
+        accountName: l.accountName,
+        balance: l.balance,
+        sharePct: Math.round(share * 10) / 10,
+        over: share > t.pct
+      };
+    }).sort(function (a, b) { return b.sharePct - a.sharePct; });
+
+    return {
+      thresholdPct: t.pct,
+      isDefault: t.isDefault,
+      total: total,
+      lines: lines,
+      over: lines.filter(function (l) { return l.over; }),
+      // Shares are of what could be counted. Anything left out makes every share above
+      // larger than it would be if the missing figure were in the denominator.
+      excludedCount: (pos.unconverted || []).length
+    };
+  }
+
   // Deposits above the PIDM limit at any one member institution (FR-4.4).
   // The limit applies per depositor per member bank, aggregated across their accounts.
   var PIDM_LIMIT = 250000;
@@ -226,6 +278,9 @@
     savingsRate: savingsRate,
     allocation: allocation,
     pidmExposure: pidmExposure,
+    concentration: concentration,
+    concentrationThreshold: concentrationThreshold,
+    DEFAULT_CONCENTRATION_PCT: DEFAULT_CONCENTRATION_PCT,
     DIMENSIONS: DIMENSIONS,
     PIDM_LIMIT: PIDM_LIMIT
   };
