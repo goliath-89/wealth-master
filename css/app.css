@@ -305,6 +305,24 @@ input[type=checkbox]{width:20px;height:20px;min-height:20px;accent-color:var(--a
 .subtot .wv{margin-left:auto;font-variant-numeric:tabular-nums}
 svg.chart{display:block;width:100%;height:auto;overflow:visible}
 .gridline{stroke:var(--line);stroke-width:1}
+/* ---- chart hover (P7.1) ---- */
+.hover-host{position:relative}
+.hover-host svg.chart{touch-action:pan-y;cursor:crosshair}
+.hover-host svg.chart:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
+.hv-line{stroke:var(--tx3);stroke-width:1;stroke-dasharray:3 3}
+.hv-tip{
+  position:absolute;top:8px;z-index:5;min-width:210px;max-width:280px;pointer-events:none;
+  background:var(--surface3);border:.5px solid var(--line2);border-radius:var(--r);
+  padding:10px 12px;font-size:12px;color:var(--tx);box-shadow:0 6px 20px rgba(0,0,0,.35);
+}
+.hv-tip[hidden]{display:none}
+.hv-h{font-weight:600;font-size:12.5px;margin-bottom:6px}
+.hv-row{display:flex;justify-content:space-between;gap:14px;padding:2px 0;color:var(--tx2);white-space:nowrap}
+.hv-row b{color:var(--tx);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hv-row b.up{color:var(--good)}
+.hv-row b.dn{color:var(--bad)}
+.hv-sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:baseline}
+.hv-note{margin-top:6px;padding-top:6px;border-top:.5px solid var(--line2);color:var(--warn);font-size:11px}
 .axis-t{font-size:10.5px;fill:var(--tx3)}
 .lsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0}
 .lsum div{background:var(--surface2);border:.5px solid var(--line);border-radius:var(--r);padding:10px 12px}

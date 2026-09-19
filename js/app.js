@@ -744,6 +744,54 @@ function drawWorthChart(pts) {
       ? '<span class="lg"><span class="lgd" style="border:2px solid var(--warn);background:var(--bg)"></span>' +
         "Carried forward</span>"
       : "") + "</div>";
+
+  // Point at a month to read it: net worth, assets, liabilities and the move since last month.
+  var svgLabel = el.querySelector("svg.chart");
+  svgLabel.setAttribute("aria-label", svgLabel.getAttribute("aria-label") +
+    ". Use the arrow keys to read each month.");
+  WM.attachHover(el, {
+    plot: { top: mt, bottom: mt + ph },
+    points: pts.map(function (p, i) {
+      return {
+        x: X(i),
+        html: worthTip(p, i ? pts[i - 1] : null),
+        markers: [
+          { y: Y(p.assets), colour: "var(--accent)" },
+          { y: Y(p.net), colour: "var(--accent)", hollow: p.partial },
+          { y: Y(-p.liabilities), colour: "var(--bad)" }
+        ]
+      };
+    })
+  });
+}
+
+function longMonth(period) {
+  var names = ["January", "February", "March", "April", "May", "June", "July", "August",
+    "September", "October", "November", "December"];
+  return WM.isPeriod(period) ? names[parseInt(period.slice(5, 7), 10) - 1] + " " + period.slice(0, 4) : esc(period);
+}
+
+// The tooltip for one month. A month that rests on carried-forward figures says so in a
+// sentence, as well as with the asterisk: colour or a mark alone is not enough.
+function worthTip(p, prev) {
+  var change = WM.changeBetween(prev, p);
+  var mark = p.partial ? '<span class="stale-mark">*</span>' : "";
+  var moved = "";
+  if (change) {
+    var up = change.delta >= 0;
+    moved = '<div class="hv-row"><span>Since last month</span><b class="' + (up ? "up" : "dn") + '">' +
+      (up ? "▲ " : "▼ ") + esc(fmtRM(Math.abs(change.delta))) +
+      (change.pct === null ? "" : " · " + esc(Math.abs(change.pct).toFixed(1)) + "%") + "</b></div>";
+  }
+  return '<div class="hv-h">' + esc(longMonth(p.period)) + "</div>" +
+    '<div class="hv-row"><span><i class="hv-sw" style="background:var(--accent)"></i>Net worth</span><b>' +
+      esc(fmtRM(p.net)) + mark + "</b></div>" +
+    '<div class="hv-row"><span><i class="hv-sw" style="background:var(--accent-tint)"></i>Assets</span><b>' +
+      esc(fmtRM(p.assets)) + "</b></div>" +
+    '<div class="hv-row"><span><i class="hv-sw" style="background:var(--bad-tint)"></i>Liabilities</span><b>' +
+      esc(fmtRM(p.liabilities)) + "</b></div>" +
+    moved +
+    (p.partial ? '<div class="hv-note">* Includes figures carried forward from an earlier month.</div>' : "");
 }
 
 function shortRM(n) {
