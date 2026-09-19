@@ -668,15 +668,268 @@ function renderCategoryStrip() {
 }
 
 // Hand-rolled SVG: no charting library, so the app stays offline and dependency-free.
-function drawWorthChart(pts) {
+function drawWorthChart(all) {
   var el = $("worthChart");
-  if (pts.length < 2) {
+  if (all.length < 2) {
     el.innerHTML = '<div class="note" style="text-align:center;padding:30px 0">' +
       "A trend needs at least two months.</div>";
     return;
   }
+  worthAll = all;
+  bindWorthChart(el);
+  paintWorth(el);
+}
 
-  var W = 720, H = 240, ml = 62, mr = 12, mt = 12, mb = 28;
+// ---- the window onto the trend (P7.3) --------------------------------------
+// The chart shows worthAll[from..to]. null means the whole history, which is what a new
+// visitor sees; anything else is the owner's own zoom and survives a re-render. A window
+// that ends at the latest month stays on the latest month when a new one is recorded.
+var worthAll = [];
+var worthView = null;
+var WORTH_ML = 62, WORTH_MR = 12, WORTH_MIN = 3;
+
+// The drawing's own width, read from the attribute so it does not depend on layout.
+function vbWidth(svg) {
+  return parseFloat((svg.getAttribute("viewBox") || "").split(/\s+/)[2]) || 1;
+}
+
+function worthClamp(from, to) {
+  var n = worthAll.length, min = Math.min(WORTH_MIN, n);
+  var span = Math.max(min - 1, Math.min(to - from, n - 1));
+  from = Math.max(0, Math.min(from, n - 1 - span));
+  return { from: from, to: from + span };
+}
+
+function worthWindow() {
+  var n = worthAll.length;
+  if (!worthView) return { from: 0, to: n - 1 };
+  var w = worthClamp(worthView.from, worthView.to);
+  return worthView.pin ? worthClamp(n - 1 - (w.to - w.from), n - 1) : w;
+}
+
+function setWorthWindow(from, to) {
+  var w = worthClamp(from, to), n = worthAll.length;
+  worthView = (w.from === 0 && w.to === n - 1) ? null : { from: w.from, to: w.to, pin: w.to === n - 1 };
+}
+
+// frac is where in the visible window the zoom is anchored, so the month under the cursor
+// (or between the fingers) stays put.
+function worthZoom(factor, frac) {
+  var w = worthWindow(), span = w.to - w.from;
+  var next = Math.round(span * factor);
+  next = factor < 1 ? Math.min(next, span - 1) : Math.max(next, span + 1);
+  var from = Math.round(w.from + frac * span - frac * next);
+  setWorthWindow(from, from + next);
+}
+
+function worthPan(months) {
+  var w = worthWindow();
+  setWorthWindow(w.from + months, w.to + months);
+}
+
+function worthPreset(months) {
+  var n = worthAll.length;
+  setWorthWindow(months === "all" ? 0 : n - 1 - months, n - 1);
+}
+
+function worthControls(win) {
+  var n = worthAll.length, span = win.to - win.from, isAll = win.from === 0 && win.to === n - 1;
+  function preset(label, m) {
+    var on = m === "all" ? isAll : (win.to === n - 1 && span === m && !isAll);
+    var off = m !== "all" && m >= n - 1;
+    return '<button type="button" class="zbtn" data-zoom="' + m + '" aria-pressed="' + (on ? "true" : "false") + '"' +
+      (off ? " disabled" : "") + ">" + label + "</button>";
+  }
+  return '<div class="zoombar"><span class="zrange">' + esc(monthLabel(worthAll[win.from].period)) + " – " +
+    esc(monthLabel(worthAll[win.to].period)) + "</span>" +
+    preset("6M", 6) + preset("1Y", 12) + preset("3Y", 36) + preset("All", "all") +
+    '<button type="button" class="zbtn" data-zoom="out" aria-label="Zoom out"' + (isAll ? " disabled" : "") + ">−</button>" +
+    '<button type="button" class="zbtn" data-zoom="in" aria-label="Zoom in"' +
+      (span <= Math.min(WORTH_MIN, n) - 1 ? " disabled" : "") + ">+</button></div>";
+}
+
+// The whole history in miniature, with the visible window outlined: drag it to scroll,
+// tap outside it to jump there.
+function worthOverview(W, all, win) {
+  var OH = 34, pw = W - WORTH_ML - WORTH_MR, n = all.length;
+  var nets = all.map(function (p) { return p.net; });
+  var lo = Math.min.apply(null, nets), hi = Math.max.apply(null, nets), range = hi - lo || 1;
+  var X = function (i) { return WORTH_ML + (i / (n - 1)) * pw; };
+  var Y = function (v) { return 4 + (OH - 8) * (1 - (v - lo) / range); };
+  var line = all.map(function (p, i) { return X(i).toFixed(1) + "," + Y(p.net).toFixed(1); }).join(" L");
+  var x1 = X(win.from), x2 = X(win.to);
+  return '<svg class="ov" viewBox="0 0 ' + W + " " + OH + '" role="group" ' +
+    'aria-label="All months. Drag the outlined window to scroll the trend.">' +
+    '<path d="M' + line + '" fill="none" stroke="var(--tx3)" stroke-width="1.5" stroke-linejoin="round"></path>' +
+    '<rect x="' + WORTH_ML + '" y="0" width="' + Math.max(0, x1 - WORTH_ML).toFixed(1) + '" height="' + OH +
+      '" fill="var(--bg)" opacity="0.6"></rect>' +
+    '<rect x="' + x2.toFixed(1) + '" y="0" width="' + Math.max(0, W - WORTH_MR - x2).toFixed(1) + '" height="' + OH +
+      '" fill="var(--bg)" opacity="0.6"></rect>' +
+    '<rect class="ov-win" x="' + x1.toFixed(1) + '" y="1" width="' + Math.max(2, x2 - x1).toFixed(1) +
+      '" height="' + (OH - 2) + '" rx="3" fill="var(--accent-tint)" fill-opacity="0.35" stroke="var(--accent)" stroke-width="1.5"></rect>' +
+    "</svg>";
+}
+
+// Zoom and pan are handled once, on the container, because the chart inside it is redrawn
+// on every step: a listener on the svg would be thrown away with it.
+function bindWorthChart(el) {
+  if (el._worthBound) return;
+  el._worthBound = true;
+
+  function repaint(focus) {
+    paintWorth(el);
+    if (focus) { var f = el.querySelector(focus); if (f && !f.disabled) f.focus(); }
+  }
+  function plotFrac(svg, clientX) {
+    var r = svg.getBoundingClientRect();
+    if (!r.width) return 0.5;
+    var vbW = vbWidth(svg);
+    var x = (clientX - r.left) / r.width * vbW;
+    return Math.max(0, Math.min(1, (x - WORTH_ML) / (vbW - WORTH_ML - WORTH_MR)));
+  }
+  function target(e, sel) { return e.target && e.target.closest ? e.target.closest(sel) : null; }
+
+  el.addEventListener("click", function (e) {
+    var b = target(e, "[data-zoom]");
+    if (!b || b.disabled) return;
+    var z = b.getAttribute("data-zoom");
+    if (z === "in") worthZoom(0.7, 0.5);
+    else if (z === "out") worthZoom(1 / 0.7, 0.5);
+    else worthPreset(z === "all" ? "all" : parseInt(z, 10));
+    repaint('[data-zoom="' + z + '"]');
+  });
+
+  // Ctrl+wheel (which is also how a trackpad pinch arrives) zooms; sideways scroll pans.
+  // Plain vertical wheel is left alone, so scrolling the page never gets caught on a chart.
+  el.addEventListener("wheel", function (e) {
+    var svg = target(e, "svg.chart");
+    if (!svg) return;
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      worthZoom(e.deltaY > 0 ? 1.2 : 1 / 1.2, plotFrac(svg, e.clientX));
+      repaint();
+    } else if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      e.preventDefault();
+      var d = e.deltaX || e.deltaY;
+      worthPan(d > 0 ? 1 : -1);
+      repaint();
+    }
+  }, { passive: false });
+
+  el.addEventListener("dblclick", function (e) {
+    if (!target(e, "svg.chart")) return;
+    worthPreset("all");
+    repaint();
+  });
+
+  el.addEventListener("keydown", function (e) {
+    if (!target(e, "svg.chart")) return;
+    if (e.key === "+" || e.key === "=") worthZoom(0.7, 0.5);
+    else if (e.key === "-" || e.key === "_") worthZoom(1 / 0.7, 0.5);
+    else return;
+    e.preventDefault();
+    repaint("svg.chart");
+  });
+
+  // One finger (or the mouse) drags the chart; two fingers pinch it; the strip below moves
+  // the window directly.
+  var pointers = {}, drag = null, pinch = null, strip = null;
+  function count() { return Object.keys(pointers).length; }
+  function dist() {
+    var p = Object.keys(pointers).map(function (k) { return pointers[k]; });
+    return Math.abs(p[0].x - p[1].x) || 1;
+  }
+  function stripIndex(svg, clientX) {
+    return plotFrac(svg, clientX) * (worthAll.length - 1);
+  }
+
+  el.addEventListener("pointerdown", function (e) {
+    if (e.pointerType === "mouse" && e.button) return;
+    var ov = target(e, "svg.ov"), svg = target(e, "svg.chart");
+    if (!ov && !svg) return;
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (el.setPointerCapture) { try { el.setPointerCapture(e.pointerId); } catch (x) { /* not capturable */ } }
+
+    if (ov) {
+      var w = worthWindow(), idx = stripIndex(ov, e.clientX);
+      var inside = idx >= w.from && idx <= w.to;
+      strip = { svg: ov, span: w.to - w.from, offset: inside ? idx - (w.from + w.to) / 2 : 0 };
+      if (!inside) {
+        var f = Math.round(idx - strip.span / 2);
+        setWorthWindow(f, f + strip.span);
+        repaint();
+      }
+      return;
+    }
+    if (count() === 2) {
+      var w2 = worthWindow();
+      pinch = { d0: dist(), from: w2.from, to: w2.to, svg: svg };
+      drag = null;
+    } else {
+      var w1 = worthWindow(), r = svg.getBoundingClientRect();
+      var plotPx = r.width * (vbWidth(svg) - WORTH_ML - WORTH_MR) / vbWidth(svg);
+      drag = { x0: e.clientX, from: w1.from, to: w1.to, perMonth: plotPx ? plotPx / (w1.to - w1.from) : 0, moved: false };
+    }
+  });
+
+  el.addEventListener("pointermove", function (e) {
+    if (!pointers[e.pointerId]) return;
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+
+    if (strip) {
+      var c = stripIndex(strip.svg, e.clientX) - strip.offset;
+      var f = Math.round(c - strip.span / 2);
+      var before = worthWindow().from;
+      setWorthWindow(f, f + strip.span);
+      if (worthWindow().from !== before) { el.classList.add("zdrag"); repaint(); }
+      return;
+    }
+    if (pinch && count() === 2) {
+      var span0 = pinch.to - pinch.from;
+      var next = Math.max(1, Math.round(span0 * pinch.d0 / dist()));
+      var mid = pinch.from + span0 / 2;
+      setWorthWindow(Math.round(mid - next / 2), Math.round(mid - next / 2) + next);
+      el.classList.add("zdrag");
+      repaint();
+      return;
+    }
+    if (drag && drag.perMonth) {
+      var dx = e.clientX - drag.x0;
+      if (!drag.moved && Math.abs(dx) < 4) return;
+      drag.moved = true;
+      var shift = -Math.round(dx / drag.perMonth);
+      var w = worthWindow();
+      if (drag.from + shift !== w.from) {
+        el.classList.add("zdrag");
+        setWorthWindow(drag.from + shift, drag.to + shift);
+        repaint();
+      }
+    }
+  });
+
+  function release(e) {
+    delete pointers[e.pointerId];
+    if (count() < 2) pinch = null;
+    if (!count()) { drag = null; strip = null; el.classList.remove("zdrag"); }
+  }
+  el.addEventListener("pointerup", release);
+  el.addEventListener("pointercancel", release);
+
+  // A rotated phone or a resized window changes the shape the chart is drawn for.
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { if (worthAll.length > 1) paintWorth(el); }, 150);
+  });
+}
+
+function paintWorth(el) {
+  var win = worthWindow();
+  var pts = worthAll.slice(win.from, win.to + 1);
+  // A phone gets a taller, narrower drawing, so the text stays readable and the lines have
+  // room. Drawn at desktop shape and shrunk, the labels came out about 4px high.
+  var narrow = el.clientWidth && el.clientWidth < 520;
+  var W = narrow ? 360 : 720, H = narrow ? 300 : 240, ml = WORTH_ML, mr = WORTH_MR, mt = 12, mb = 28;
   var pw = W - ml - mr, ph = H - mt - mb;
 
   // Assets above the line, liabilities below it, net worth between them. Three shapes of
@@ -734,7 +987,7 @@ function drawWorthChart(pts) {
       '" text-anchor="middle">' + esc(monthLabel(p.period)) + "</text>";
   });
 
-  el.innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
+  el.innerHTML = worthControls(win) + '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
     'role="img" aria-label="Net worth, with assets and liabilities as bands">' + body + "</svg>" +
     '<div class="legend"><span class="lg"><span class="lgd" style="background:var(--accent)"></span>' +
     "Net worth</span>" +
@@ -743,7 +996,7 @@ function drawWorthChart(pts) {
     (pts.some(function (p) { return p.partial; })
       ? '<span class="lg"><span class="lgd" style="border:2px solid var(--warn);background:var(--bg)"></span>' +
         "Carried forward</span>"
-      : "") + "</div>";
+      : "") + "</div>" + worthOverview(W, worthAll, win);
 
   // Point at a month to read it: net worth, assets, liabilities and the move since last month.
   var svgLabel = el.querySelector("svg.chart");
