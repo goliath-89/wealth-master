@@ -137,5 +137,95 @@
     return { show: show, hide: hide, index: function () { return current; } };
   }
 
-  return { attachHover: attachHover };
+  // Donuts: point at a slice (or its legend row) and it lifts, the rest dim, and a pop-out
+  // names it. Slices and legend rows carry data-slice="<n>"; items[n].html is the pop-out.
+  function attachSlices(host, legendHost, items) {
+    if (!host || !items || !items.length) return null;
+    var svg = host.querySelector("svg.chart");
+    if (!svg) return null;
+    var doc = host.ownerDocument;
+    host.classList.add("hover-host");
+
+    var tip = doc.createElement("div");
+    tip.className = "hv-tip";
+    tip.setAttribute("role", "status");
+    tip.hidden = true;
+    host.appendChild(tip);
+
+    var slices = Array.prototype.slice.call(svg.querySelectorAll("[data-slice]"));
+    var rows = legendHost ? Array.prototype.slice.call(legendHost.querySelectorAll("[data-slice]")) : [];
+    var current = -1;
+
+    function place(x, y) {
+      var hr = host.getBoundingClientRect();
+      var w = tip.offsetWidth || 0, h = tip.offsetHeight || 0;
+      var left = x - hr.left + 14, top = y - hr.top + 14;
+      if (hr.width) {
+        if (left + w > hr.width) left = x - hr.left - w - 14;
+        left = Math.max(0, Math.min(left, hr.width - w));
+      }
+      if (hr.height) top = Math.max(0, Math.min(top, hr.height - h));
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+    }
+
+    function centreOf(i) {
+      var r = slices[i] ? slices[i].getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+      return [r.left + r.width / 2, r.top + r.height / 2];
+    }
+
+    function show(i, x, y) {
+      if (i < 0 || i >= items.length) return;
+      current = i;
+      svg.classList.add("hv-dim");
+      slices.forEach(function (s) { s.classList.toggle("hv-on", s.getAttribute("data-slice") === String(i)); });
+      rows.forEach(function (r) { r.classList.toggle("hv-on", r.getAttribute("data-slice") === String(i)); });
+      tip.innerHTML = items[i].html;
+      tip.hidden = false;
+      if (x === undefined) { var c = centreOf(i); x = c[0]; y = c[1]; }
+      place(x, y);
+    }
+
+    function hide() {
+      current = -1;
+      svg.classList.remove("hv-dim");
+      slices.concat(rows).forEach(function (n) { n.classList.remove("hv-on"); });
+      tip.hidden = true;
+    }
+
+    function idx(node) { return parseInt(node.getAttribute("data-slice"), 10); }
+
+    slices.forEach(function (s) {
+      s.setAttribute("tabindex", "0");
+      s.addEventListener("pointermove", function (e) { show(idx(s), e.clientX, e.clientY); });
+      s.addEventListener("pointerdown", function (e) { show(idx(s), e.clientX, e.clientY); });
+      s.addEventListener("pointerleave", function (e) { if (e.pointerType !== "touch") hide(); });
+      s.addEventListener("focus", function () { show(idx(s)); });
+      s.addEventListener("blur", hide);
+      s.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") { hide(); return; }
+        var step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
+          : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        slices[(slices.indexOf(s) + step + slices.length) % slices.length].focus();
+      });
+    });
+    rows.forEach(function (r) {
+      r.addEventListener("pointerenter", function (e) { if (e.pointerType !== "touch") show(idx(r)); });
+      r.addEventListener("pointerleave", function (e) { if (e.pointerType !== "touch") hide(); });
+      r.addEventListener("pointerdown", function () { show(idx(r)); });
+    });
+
+    // A touch has no "leave": the pop-out stays until the next tap lands elsewhere.
+    if (host._hvOutside) doc.removeEventListener("pointerdown", host._hvOutside);
+    host._hvOutside = function (e) {
+      if (!host.contains(e.target) && !(legendHost && legendHost.contains(e.target))) hide();
+    };
+    doc.addEventListener("pointerdown", host._hvOutside);
+
+    return { show: show, hide: hide, index: function () { return current; } };
+  }
+
+  return { attachHover: attachHover, attachSlices: attachSlices };
 });

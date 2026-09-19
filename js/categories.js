@@ -53,8 +53,8 @@
   // a strip that does not add up to the total above it is a bug the screen should not hide.
   function categoryTotals(state, period) {
     var pos = nw.positionAt(state, period);
-    var totals = {}, marks = {};
-    ASSET_CATEGORIES.forEach(function (c) { totals[c.key] = 0; marks[c.key] = false; });
+    var totals = {}, marks = {}, counts = {};
+    ASSET_CATEGORIES.forEach(function (c) { totals[c.key] = 0; marks[c.key] = false; counts[c.key] = 0; });
     var liabilities = 0, liabilitiesPartial = false;
 
     pos.lines.forEach(function (line) {
@@ -67,6 +67,7 @@
       if (line.convertible === false) return;
       var key = line.kind === "asset" ? "useAssets" : holdingCategory(state, line);
       totals[key] += line.balance;
+      counts[key] += 1;
       if (line.stale) marks[key] = true;
     });
 
@@ -76,7 +77,7 @@
       // yet" rather than as a category that has gone missing.
       return c.key !== "other" || totals.other !== 0;
     }).map(function (c) {
-      return { key: c.key, label: c.label, total: totals[c.key], partial: marks[c.key] };
+      return { key: c.key, label: c.label, total: totals[c.key], partial: marks[c.key], count: counts[c.key] };
     });
 
     var assets = categories.reduce(function (sum, c) { return sum + c.total; }, 0);

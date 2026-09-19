@@ -2162,15 +2162,16 @@ function drawDonut(chartId, legendId, slices, total, centre, ariaLabel) {
   if (slices.length === 1) {
     // A single slice as a full circle — an arc from 0 to 360 degenerates to nothing.
     body += '<circle cx="' + cx + '" cy="' + cy + '" r="' + ((rO + rI) / 2) +
-      '" fill="none" stroke="' + sliceColour(0) + '" stroke-width="' + (rO - rI) + '"></circle>';
+      '" fill="none" stroke="' + sliceColour(0) + '" stroke-width="' + (rO - rI) + '" data-slice="0" ' +
+      'role="img" aria-label="' + esc(sliceSummary(slices[0])) + '"></circle>';
   } else {
     var angle = 0;
     slices.forEach(function (s, i) {
       var sweep = s.value / total * 360;
       if (sweep <= 0) return;
       var gap = sweep > 3 ? 1 : 0;
-      body += '<path d="' + arcPath(cx, cy, rO, rI, angle, angle + sweep - gap) +
-        '" fill="' + sliceColour(i) + '"></path>';
+      body += '<path data-slice="' + i + '" d="' + arcPath(cx, cy, rO, rI, angle, angle + sweep - gap) +
+        '" fill="' + sliceColour(i) + '" role="img" aria-label="' + esc(sliceSummary(s)) + '"></path>';
       angle += sweep;
     });
   }
@@ -2184,10 +2185,30 @@ function drawDonut(chartId, legendId, slices, total, centre, ariaLabel) {
     'aria-label="' + esc(ariaLabel) + '">' + body + "</svg>";
 
   $(legendId).innerHTML = '<div class="legend">' + slices.map(function (s, i) {
-    return '<span class="lg"><span class="lgd" style="background:' + sliceColour(i) + '"></span>' +
+    return '<span class="lg" data-slice="' + i + '"><span class="lgd" style="background:' + sliceColour(i) + '"></span>' +
       esc(s.label) + ' <span class="lgv">' + esc(s.share.toFixed(1)) + "% · " +
       esc(fmtRM(s.value)) + "</span></span>";
   }).join("") + "</div>";
+
+  WM.attachSlices($(chartId), $(legendId), slices.map(function (s, i) {
+    return { html: sliceTip(s, i) };
+  }));
+}
+
+function sliceSummary(s) {
+  return s.label + ", " + s.share.toFixed(1) + " percent, " + fmtRM(s.value);
+}
+
+// The pop-out for one slice. A slice that rests on carried-forward figures says so in a
+// sentence as well as the asterisk, the same as the trend chart's months.
+function sliceTip(s, i) {
+  var n = s.count;
+  return '<div class="hv-h"><i class="hv-sw" style="background:' + sliceColour(i) + '"></i>' + esc(s.label) + "</div>" +
+    '<div class="hv-row"><span>Value</span><b>' + esc(fmtRM(s.value)) +
+      (s.partial ? '<span class="stale-mark">*</span>' : "") + "</b></div>" +
+    '<div class="hv-row"><span>Share of assets</span><b>' + esc(s.share.toFixed(1)) + "%</b></div>" +
+    (n ? '<div class="hv-row"><span>Made up of</span><b>' + n + (n === 1 ? " holding" : " holdings") + "</b></div>" : "") +
+    (s.partial ? '<div class="hv-note">* Includes figures carried forward from an earlier month.</div>' : "");
 }
 
 // The categories of the strip, as a donut. Liabilities are not a slice of assets, so the
@@ -2195,7 +2216,10 @@ function drawDonut(chartId, legendId, slices, total, centre, ariaLabel) {
 function renderCategoryDonut() {
   var t = WM.categoryTotals(state, WM.currentPeriod());
   var slices = t.categories.filter(function (c) { return c.total > 0; }).map(function (c) {
-    return { label: c.label, value: c.total, share: t.assets ? c.total / t.assets * 100 : 0 };
+    return {
+      label: c.label, value: c.total, share: t.assets ? c.total / t.assets * 100 : 0,
+      count: c.count, partial: c.partial
+    };
   });
   drawDonut("classChart", "classLegend", slices, t.assets, "assets", "Assets by category");
 }
