@@ -31,12 +31,15 @@
   }
 
   // opts:
-  //   points  [{ x, html, markers: [{ y, colour, hollow }] }] in viewBox units, ordered by x
+  //   points  [{ x, html, markers: [{ y, colour, hollow }] }] in viewBox units, ordered by x.
+  //           html and markers may be functions, called only when a point is shown, so a
+  //           chart with hundreds of points does not build hundreds of tooltips up front.
+  //   svg     the drawing to attach to, when the host holds more than one
   //   plot    { top, bottom } viewBox y-range the guide line spans
   // Returns { show(i), hide(), index() }, or null when there is nothing to attach to.
   function attachHover(host, opts) {
     if (!host || !opts || !opts.points || !opts.points.length) return null;
-    var svg = host.querySelector("svg.chart");
+    var svg = opts.svg || host.querySelector("svg.chart");
     if (!svg) return null;
 
     var doc = host.ownerDocument;
@@ -83,7 +86,8 @@
       line.setAttribute("x2", p.x);
 
       while (layer.childNodes.length > 1) layer.removeChild(layer.lastChild);
-      (p.markers || []).forEach(function (m) {
+      var markers = typeof p.markers === "function" ? p.markers() : (p.markers || []);
+      markers.forEach(function (m) {
         layer.appendChild(svgEl(doc, "circle", {
           cx: p.x, cy: m.y, r: 4.5,
           fill: m.hollow ? "var(--bg)" : m.colour,
@@ -93,7 +97,7 @@
       });
       layer.style.display = "";
 
-      tip.innerHTML = p.html;
+      tip.innerHTML = typeof p.html === "function" ? p.html() : p.html;
       tip.hidden = false;
 
       // Sit beside the guide line, on whichever side has room.
@@ -106,6 +110,8 @@
       var left = px > hw / 2 ? px - w - 14 : px + 14;
       if (hw) left = Math.max(0, Math.min(left, hw - w));
       tip.style.left = left + "px";
+      // Level with the top of the chart it belongs to, not the top of whatever holds it.
+      tip.style.top = (sr.top - hr.top + 8) + "px";
     }
 
     function hide() {
