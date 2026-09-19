@@ -22,7 +22,10 @@ var appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
 
 // Present in index.html itself, before any script runs.
 var STATIC_IDS = [
-  "a_arch", "a_name", "acctSave", "addAssetBtn", "addGoalBtn", "addInstBtn", "addLiabBtn",
+  "a_arch", "a_name", "detailBack", "detailBody", "detailCatChart", "detailCatLegend", "detailCatTitle",
+  "detailChartNote", "detailChip", "detailDim", "detailDimChart", "detailDimLegend", "detailDimTitle",
+  "detailFilter", "detailGroup", "detailHead", "detailList", "detailListTitle", "detailMovers",
+  "detailMoversList", "detailPeriod", "detailTrend", "v-detail", "acctSave", "addAssetBtn", "addGoalBtn", "addInstBtn", "addLiabBtn",
   "allocChart", "allocDim", "allocLegend", "assetDelete", "assetErr", "assetList", "assetSave",
   "assumptions", "c_balance", "c_instalment", "c_interest", "allocTitle", "c_period", "c_result", "catStrip", "classChart", "classLegend",
   "concNote", "concWrap", "csvConfirmBtn", "csvCancelBtn", "csvFileIn", "csvImportBtn",
@@ -67,7 +70,10 @@ var RENDERED_IDS = {
   // One per openable sheet row (P5.6).
   "open_": 'id="open_',
   // One per editable sheet cell (P5.4b).
-  "cell_": 'id="cell_'
+  "cell_": 'id="cell_',
+  // The drill-down draws the same rows a second time, so its ids differ (P7.4).
+  "dcell_": 'id="dcell_',
+  "dopen_": 'id="dopen_'
 };
 
 // Data attributes and classes that tests select by. Each must still be produced by
@@ -75,7 +81,7 @@ var RENDERED_IDS = {
 var ATTRIBUTE_HOOKS = [
   "data-v", "data-sched", "data-simpay", "data-simsettle", "data-edit-inst", "data-edit-acct",
   "data-edit-hold", "data-edit-asset", "data-edit-liab", "data-edit-goal", "data-edit-scenario",
-  "data-imp", "data-row-id", "data-row-kind"
+  "data-imp", "data-row-id", "data-row-kind", "data-detail"
 ];
 var CLASS_HOOKS = [
   "tab", "view", "stale-mark", "yield", "up", "dn", "wline", "irow", "ibadge", "lg", "lgt", "tag"

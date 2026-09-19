@@ -232,16 +232,23 @@ function renderWorth() {
     if (c.key === "freeCash" || c.key === "investments") investable += c.total;
   });
 
+  // Each card opens the lines behind it (P7.4). They are real links, so they can be opened
+  // in a new tab and reached from the keyboard.
   $("worthKpis").innerHTML =
-    '<div class="kpi primary"><div class="k">Net worth' + (now.partial ? '<span class="stale-mark">*</span>' : "") +
-      '</div><div class="v">' + esc(fmtRM(now.net)) + '</div><div class="d">' + deltaHtml + "</div>" +
-      '<div class="kpi-split"><div class="k">Investable assets</div>' +
+    '<div class="kpi primary"><a class="kpi-link" href="' + detailHash("net") + '" data-detail="net" title="See what makes it up">' +
+      '<div class="k">Net worth' + (now.partial ? '<span class="stale-mark">*</span>' : "") +
+      '</div><div class="v">' + esc(fmtRM(now.net)) + '</div><div class="d">' + deltaHtml + "</div></a>" +
+      '<a class="kpi-split" href="' + detailHash("investable") + '" data-detail="investable" title="See what makes it up">' +
+      '<div class="k">Investable assets</div>' +
       '<div class="v">' + esc(fmtRM(investable)) + "</div>" +
-      '<div class="d neu">Free cash and investments</div></div></div>' +
-    '<div class="kpi"><div class="k">Assets</div><div class="v">' + esc(fmtRM(now.assets)) + "</div></div>" +
-    '<div class="kpi"><div class="k">Liabilities</div><div class="v">' + esc(fmtRM(now.liabilities)) + "</div></div>" +
-    '<div class="kpi"><div class="k">Liquid</div><div class="v">' + esc(fmtRM(now.liquid)) +
-      '</div><div class="d neu">' + esc(fmtRM(now.illiquid)) + " illiquid</div></div>";
+      '<div class="d neu">Free cash and investments</div></a></div>' +
+    '<a class="kpi" href="' + detailHash("assets") + '" data-detail="assets" title="See what makes it up">' +
+      '<div class="k">Assets</div><div class="v">' + esc(fmtRM(now.assets)) + "</div></a>" +
+    '<a class="kpi" href="' + detailHash("liabilities") + '" data-detail="liabilities" title="See what makes it up">' +
+      '<div class="k">Liabilities</div><div class="v">' + esc(fmtRM(now.liabilities)) + "</div></a>" +
+    '<a class="kpi" href="' + detailHash("liquid") + '" data-detail="liquid" title="See what makes it up">' +
+      '<div class="k">Liquid</div><div class="v">' + esc(fmtRM(now.liquid)) +
+      '</div><div class="d neu">' + esc(fmtRM(now.illiquid)) + " illiquid</div></a>";
 
   // Staleness is stated in words, not only in colour — colour must never be the sole
   // signal (NFR-9).
@@ -655,15 +662,16 @@ function renderCategoryStrip() {
     return;
   }
   var items = t.categories.map(function (c) {
-    return { label: c.label, value: fmtRM(c.total), partial: c.partial };
+    return { key: c.key, label: c.label, value: fmtRM(c.total), partial: c.partial };
   });
-  items.push({ label: "Liabilities", value: "−" + fmtRM(t.liabilities), partial: t.liabilitiesPartial });
+  items.push({ key: "liabilities", label: "Liabilities", value: "−" + fmtRM(t.liabilities), partial: t.liabilitiesPartial });
 
   $("catStrip").innerHTML = '<div class="strip">' + items.map(function (i) {
-    return '<div class="strip-i"><div class="strip-k">' + esc(i.label) + "</div>" +
+    return '<a class="strip-i" href="' + detailHash(i.key) + '" data-detail="' + esc(i.key) +
+      '" title="See what makes it up"><div class="strip-k">' + esc(i.label) + "</div>" +
       '<div class="strip-v">' + esc(i.value) +
       (i.partial ? '<span class="stale-mark" title="includes figures carried forward">*</span>' : "") +
-      "</div></div>";
+      "</div></a>";
   }).join("") + "</div>";
 }
 
@@ -3538,7 +3546,9 @@ function rowFigures(subjectId) {
 // is not: its balance is units x price, so typing a ringgit figure over it would be
 // overwritten by the unit maths and read as a silent rejection. Those rows stay text and
 // say where to edit them.
-function valueCell(fig, kind, id, name, editable) {
+// `second` is for the drill-down list, which draws the same rows as the Accounts screen: a
+// page must not carry two elements with one id, so its cells get their own.
+function valueCell(fig, kind, id, name, editable, second) {
   // A foreign figure with no rate is shown in its own currency and left read-only: a cell
   // that formats ringgit would invite a ringgit figure over a USD balance.
   if (!editable || fig.foreign) {
@@ -3550,7 +3560,7 @@ function valueCell(fig, kind, id, name, editable) {
   var recorded = fig.valueStale ? "" : fig.raw;
   var placeholder = fig.valueStale ? fig.value.replace(/<[^>]*>/g, "") + " carried" : "—";
   return '<div class="srow-v"><input class="cellin" type="text" inputmode="decimal" ' +
-    'id="cell_' + esc(id) + '" data-cell="' + esc(id) + '" data-cellkind="' + esc(kind) + '" ' +
+    (second ? 'id="dcell_' : 'id="cell_') + esc(id) + '" data-cell="' + esc(id) + '" data-cellkind="' + esc(kind) + '" ' +
     'value="' + esc(recorded) + '" placeholder="' + esc(placeholder) + '" ' +
     'aria-label="' + esc(name) + ", " + esc(monthLabel(sheetPeriod())) + '">' +
     (fig.valueStale ? '<span class="stale-mark" title="carried forward">*</span>' : "") + "</div>";
@@ -4099,20 +4109,416 @@ document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && openRow) closeRowPanel();
 });
 // The sheet reads and writes one month at a time; changing it redraws the three lists.
-$("sheetPeriod").onchange = function () { renderTree(); renderAssets(); renderLiabilities(); };
+$("sheetPeriod").onchange = function () { renderTree(); renderAssets(); renderLiabilities(); renderDetail(); };
 $("allocDim").onchange = renderAllocation;
 
+function showView(name) {
+  Array.prototype.forEach.call(document.querySelectorAll(".view"), function (v) {
+    v.classList.toggle("on", v.id === "v-" + name);
+  });
+}
+
+// The drill-down is a page, not a tab: the navigation keeps showing the tab it was opened
+// from, and leaving it by any tab clears its address.
+var lastTab = "worth";
 Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
   t.onclick = function () {
+    lastTab = t.getAttribute("data-v");
     Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (x) {
       x.classList.toggle("on", x === t);
     });
-    Array.prototype.forEach.call(document.querySelectorAll(".view"), function (v) {
-      v.classList.toggle("on", v.id === "v-" + t.getAttribute("data-v"));
-    });
+    showView(lastTab);
+    if (parseDetailHash(location.hash)) replaceAddress(location.pathname + location.search);
     window.scrollTo(0, 0);
   };
 });
+
+// ---- drill-down (P7.4) -------------------------------------------------------------------
+// A card opens the lines behind its number: a list that can be edited in place, and a few
+// charts of just those lines. One page serves every card; the address says which, so Back
+// works and a filtered view can be bookmarked. The list is the Accounts sheet's own row and
+// cell code, so there is one editor and the two screens cannot disagree.
+var detail = { scope: null, dim: null, group: null, sort: { key: "value", dir: -1 }, text: "", filter: null };
+var detailLabels = { a: { dim: null, labels: [] }, b: { dim: null, labels: [] } };
+var detailPushed = false;
+
+function detailHash(scope, filter, period) {
+  var q = [];
+  if (filter) q.push("f=" + encodeURIComponent(filter.dim + "~" + filter.value));
+  if (period) q.push("m=" + encodeURIComponent(period));
+  return "#/detail/" + encodeURIComponent(scope) + (q.length ? "?" + q.join("&") : "");
+}
+
+function parseDetailHash(hash) {
+  var m = /^#\/detail\/([^?]+)(?:\?(.*))?$/.exec(hash || "");
+  if (!m) return null;
+  var out = { scope: "", filter: null, period: null };
+  try { out.scope = decodeURIComponent(m[1]); } catch (e) { return null; }
+  (m[2] || "").split("&").forEach(function (kv) {
+    var i = kv.indexOf("=");
+    if (i < 0) return;
+    var k = kv.slice(0, i), v;
+    try { v = decodeURIComponent(kv.slice(i + 1)); } catch (e) { return; }
+    if (k === "f") {
+      var j = v.indexOf("~");
+      if (j > 0) out.filter = { dim: v.slice(0, j), value: v.slice(j + 1) };
+    } else if (k === "m" && WM.isPeriod(v)) {
+      out.period = v;
+    }
+  });
+  return out;
+}
+
+// history.pushState refuses some addresses (a file opened from disk, for one); the hash
+// still works there, it just fires its own event.
+function pushAddress(hash) {
+  try { history.pushState(null, "", hash); return true; } catch (e) { location.hash = hash; return false; }
+}
+function replaceAddress(url) {
+  try { history.replaceState(null, "", url); } catch (e) { /* the address just stays as it was */ }
+}
+
+function openDetail(scope, filter) {
+  var h = detailHash(scope, filter || null, null);
+  if (location.hash !== h) { detailPushed = true; pushAddress(h); }
+  applyRoute();
+}
+
+function applyRoute() {
+  var r = parseDetailHash(location.hash);
+  if (!r) {
+    if ($("v-detail").classList.contains("on")) showView(lastTab);
+    return;
+  }
+  var changed = detail.scope !== r.scope;
+  detail.scope = r.scope;
+  detail.filter = r.filter;
+  if (changed) {
+    detail.dim = null; detail.group = null; detail.text = "";
+    $("detailFilter").value = "";
+  }
+  // A card describes the current month, so that is what it opens onto.
+  $("sheetPeriod").value = r.period || WM.currentPeriod();
+  showView("detail");
+  renderDetail();
+  if (changed) window.scrollTo(0, 0);
+}
+window.addEventListener("popstate", applyRoute);
+window.addEventListener("hashchange", applyRoute);
+
+document.addEventListener("click", function (e) {
+  var a = e.target && e.target.closest ? e.target.closest("[data-detail]") : null;
+  if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+  e.preventDefault();
+  openDetail(a.getAttribute("data-detail"));
+});
+
+$("detailBack").onclick = function () {
+  if (detailPushed && history.length > 1) { detailPushed = false; history.back(); return; }
+  replaceAddress(location.pathname + location.search);
+  showView(lastTab);
+};
+
+$("detailPeriod").onchange = function () {
+  if (!WM.isPeriod(this.value)) return;
+  $("sheetPeriod").value = this.value;
+  $("sheetPeriod").onchange();
+  replaceAddress(detailHash(detail.scope, detail.filter, this.value));
+};
+
+function setDetailFilter(dim, value) {
+  detail.filter = dim ? { dim: dim, value: value } : null;
+  replaceAddress(detailHash(detail.scope, detail.filter, sheetPeriod() === WM.currentPeriod() ? null : sheetPeriod()));
+  renderDetailList();
+}
+
+// Slices and legend rows are redrawn with the charts, so the click is handled on the
+// containers, which are not.
+["a", "b"].forEach(function (which) {
+  var ids = which === "a" ? ["detailCatChart", "detailCatLegend"] : ["detailDimChart", "detailDimLegend"];
+  ids.forEach(function (id) {
+    function pick(e) {
+      var n = e.target && e.target.closest ? e.target.closest("[data-slice]") : null;
+      if (!n) return;
+      var group = detailLabels[which];
+      var label = group.labels[parseInt(n.getAttribute("data-slice"), 10)];
+      if (label !== undefined) setDetailFilter(group.dim, label);
+    }
+    $(id).addEventListener("click", pick);
+    $(id).addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(e); }
+    });
+  });
+});
+
+$("detailDim").onchange = function () { detail.dim = this.value; renderDetail(); };
+$("detailGroup").onchange = function () { detail.group = this.value; renderDetailList(); };
+$("detailFilter").oninput = function () { detail.text = this.value; renderDetailList(); };
+$("detailList").addEventListener("click", function (e) {
+  var s = e.target && e.target.closest ? e.target.closest("[data-sort]") : null;
+  if (s) {
+    var key = s.getAttribute("data-sort");
+    detail.sort = detail.sort.key === key
+      ? { key: key, dir: -detail.sort.dir }
+      : { key: key, dir: key === "name" ? 1 : -1 };
+    renderDetailList();
+    var again = document.querySelector('#detailList [data-sort="' + key + '"]');
+    if (again) again.focus();
+  }
+});
+$("detailChip").addEventListener("click", function (e) {
+  if (e.target && e.target.closest && e.target.closest("[data-clear-filter]")) setDetailFilter(null);
+});
+
+function detailDefaultGroup(scope) {
+  if (scope === "liabilities") return "type";
+  return WM.drillDimensionsFor(scope)[0];
+}
+
+function moveHtml(delta, pct, goodWhenUp) {
+  var up = delta >= 0, good = goodWhenUp ? up : !up;
+  return '<span class="' + (good ? "up" : "dn") + '">' + (up ? "▲ +" : "▼ −") +
+    esc(fmtRM(Math.abs(delta))) + "</span>" +
+    (pct === null ? "" : ' <span class="neu">' + esc(Math.abs(pct).toFixed(1)) + "%</span>");
+}
+
+function renderDetail() {
+  if (!detail.scope || !$("v-detail").classList.contains("on")) return;
+  var info = WM.drillScopeInfo(detail.scope);
+  var period = sheetPeriod();
+  $("detailPeriod").value = period;
+
+  var rows = info ? WM.drillScope(WM.drillRows(state, period), detail.scope) : [];
+  if (!info || !rows.length) {
+    $("detailHead").innerHTML = '<div class="card"><div class="empty"><div class="et">' +
+      (info ? "Nothing recorded here yet" : "Nothing to show here") + '</div><div class="es">' +
+      (info ? esc(info.label) + " has no figures for " + esc(monthLabel(period)) + "."
+            : "This link does not match anything on the Net worth screen.") + "</div></div></div>";
+    $("detailBody").style.display = "none";
+    return;
+  }
+  $("detailBody").style.display = "";
+
+  var scope = detail.scope;
+  var liabilityScope = scope === "liabilities";
+  var tot = WM.drillTotal(rows, scope);
+  var chg = WM.drillChange(rows, scope);
+  $("detailHead").innerHTML = '<div class="kpi primary detail-h"><div class="k">' + esc(info.label) +
+    (tot.partial ? '<span class="stale-mark">*</span>' : "") + '</div><div class="v">' +
+    esc(fmtRM(tot.value)) + "</div>" +
+    '<div class="d">' + (chg ? moveHtml(chg.delta, chg.pct, !liabilityScope) + ' <span class="neu">since last month</span>'
+      : '<span class="neu">No earlier month to compare with</span>') + "</div>" +
+    '<div class="d neu">' + tot.count + (tot.count === 1 ? " line" : " lines") + " · as of " + esc(monthLabel(period)) +
+    (tot.partial ? " · includes figures carried forward" : "") + "</div></div>";
+
+  // ---- trend ----
+  drawDetailTrend(WM.drillTrend(state, scope), info.label);
+
+  // ---- breakdown ----
+  var dims = WM.drillDimensionsFor(scope);
+  var dimA = dims[0];
+  var others = dims.slice(1);
+  if (others.indexOf(detail.dim) < 0) detail.dim = others[0];
+  $("detailDim").innerHTML = others.map(function (k) {
+    return '<option value="' + esc(k) + '">' + esc(WM.DRILL_DIMENSIONS[k].label) + "</option>";
+  }).join("");
+  $("detailDim").value = detail.dim;
+
+  var chartRows = scope === "net" ? rows.filter(function (r) { return r.side === "asset"; }) : rows;
+  var gA = WM.drillGroups(chartRows, dimA), gB = WM.drillGroups(chartRows, detail.dim);
+  var centre = liabilityScope ? "owed" : "assets";
+  detailLabels.a = { dim: dimA, labels: gA.slices.map(function (s) { return s.label; }) };
+  detailLabels.b = { dim: detail.dim, labels: gB.slices.map(function (s) { return s.label; }) };
+  $("detailCatTitle").textContent = "By " + gA.label.toLowerCase();
+  $("detailDimTitle").textContent = "By " + gB.label.toLowerCase();
+  drawDonut("detailCatChart", "detailCatLegend", gA.slices, gA.total, centre, "By " + gA.label);
+  drawDonut("detailDimChart", "detailDimLegend", gB.slices, gB.total, centre, "By " + gB.label);
+  $("detailChartNote").textContent = (scope === "net" ? "Assets only: debt is not a share of what you own. " : "") +
+    "Click a slice, or its label, to filter the list below.";
+
+  // ---- what moved ----
+  var movers = rows.filter(function (r) { return r.change !== null && r.change !== 0; })
+    .sort(function (a, b) { return Math.abs(b.change) - Math.abs(a.change); }).slice(0, 5);
+  $("detailMovers").style.display = movers.length ? "" : "none";
+  if (movers.length) {
+    var top = Math.abs(movers[0].change);
+    $("detailMoversList").innerHTML = movers.map(function (r) {
+      var up = r.change > 0, good = r.side === "liability" ? !up : up;
+      return '<div class="mover"><span class="mv-n">' + esc(r.name) + "</span>" +
+        '<span class="mv-bar" aria-hidden="true"><i class="' + (good ? "up" : "dn") + '" style="width:' +
+        (Math.abs(r.change) / top * 100).toFixed(1) + '%"></i></span>' +
+        '<span class="mv-v yield ' + (good ? "up" : "dn") + '">' + (up ? "▲ +" : "▼ −") +
+        esc(fmtRM(Math.abs(r.change))) + "</span></div>";
+    }).join("");
+  }
+
+  // ---- the list ----
+  var groups = dims.concat(["none"]);
+  if (groups.indexOf(detail.group) < 0) detail.group = detailDefaultGroup(scope);
+  $("detailGroup").innerHTML = groups.map(function (k) {
+    return '<option value="' + esc(k) + '">' + esc(k === "none" ? "No grouping" : WM.DRILL_DIMENSIONS[k].label) + "</option>";
+  }).join("");
+  $("detailGroup").value = detail.group;
+  $("detailListTitle").textContent = "Lines";
+  renderDetailList();
+}
+
+function detailRow(r) {
+  var fig = rowFigures(r.id);
+  var kindKey = r.kind === "holding" ? "holdingId" : r.kind === "asset" ? "assetId" : "liabilityId";
+  var editAttr = r.kind === "holding" ? "data-edit-hold" : r.kind === "asset" ? "data-edit-asset" : "data-edit-liab";
+  var editable = true;
+  if (r.kind === "holding") {
+    var h = WM.byId(state.holdings, r.id);
+    editable = !(h && h.unitBased);
+  }
+  return '<div class="srow"><div class="srow-n">' +
+    '<button class="srow-t" id="dopen_' + esc(r.id) + '" data-row-kind="' + esc(r.kind) + '" ' +
+    'data-row-id="' + esc(r.id) + '">' + esc(r.name) + "</button>" +
+    (r.type ? '<span class="tag">' + esc(r.type) + "</span>" : "") +
+    (r.institution && r.side === "asset" ? '<span class="srow-sub">' + esc(r.institution) + "</span>" : "") +
+    (r.side === "asset" && !r.liquid ? '<span class="tag">Illiquid</span>' : "") +
+    "</div>" +
+    '<div class="srow-c">' + fig.change + "</div>" +
+    valueCell(fig, kindKey, r.id, r.name, editable, true) +
+    '<div class="srow-a"><button class="btn sm" ' + editAttr + '="' + esc(r.id) + '">Edit</button></div></div>';
+}
+
+function renderDetailList() {
+  if (!detail.scope || !WM.drillScopeInfo(detail.scope)) return;
+  var scope = detail.scope;
+  var rows = WM.drillScope(WM.drillRows(state, sheetPeriod()), scope);
+
+  var chip = "";
+  if (detail.filter && WM.DRILL_DIMENSIONS[detail.filter.dim]) {
+    var def = WM.DRILL_DIMENSIONS[detail.filter.dim];
+    rows = rows.filter(function (r) { return def.of(r) === detail.filter.value; });
+    chip = '<span class="chip">' + esc(def.label) + ": " + esc(detail.filter.value) +
+      ' <button type="button" data-clear-filter aria-label="Clear the ' + esc(def.label.toLowerCase()) + ' filter">✕</button></span>';
+  }
+  $("detailChip").innerHTML = chip;
+
+  var needle = detail.text.trim().toLowerCase();
+  if (needle) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(needle) !== -1; });
+
+  var key = detail.sort.key, dir = detail.sort.dir;
+  function order(a, b) {
+    if (key === "name") return dir * a.name.localeCompare(b.name);
+    var av = key === "change" ? a.change : a.value, bv = key === "change" ? b.change : b.value;
+    if (av === null && bv === null) return a.name.localeCompare(b.name);
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return dir * (av - bv) || a.name.localeCompare(b.name);
+  }
+  rows.sort(order);
+
+  function sortBtn(k, label) {
+    var on = key === k;
+    return '<button type="button" class="zbtn" data-sort="' + k + '" aria-pressed="' + (on ? "true" : "false") + '"' +
+      (on ? ' aria-label="Sorted by ' + label.toLowerCase() + (dir > 0 ? ", ascending" : ", descending") + '"' : "") + ">" +
+      label + (on ? (dir > 0 ? " ↑" : " ↓") : "") + "</button>";
+  }
+  var bar = '<div class="sortbar"><span>Sort by</span>' + sortBtn("name", "Name") + sortBtn("change", "1 month") +
+    sortBtn("value", "Value") + '<span class="sortbar-n">' + rows.length + (rows.length === 1 ? " line" : " lines") + "</span></div>";
+
+  if (!rows.length) {
+    $("detailList").innerHTML = bar + '<div class="card"><div class="empty"><div class="et">No lines match</div>' +
+      '<div class="es">Clear the filter to see everything in ' + esc(WM.drillScopeInfo(scope).label) + ".</div></div></div>";
+    return;
+  }
+
+  var groupDim = WM.DRILL_DIMENSIONS[detail.group];
+  var groups = [], byKey = {};
+  rows.forEach(function (r) {
+    var k = groupDim ? groupDim.of(r) : "";
+    if (!byKey[k]) { byKey[k] = { label: k, rows: [], total: 0, has: false, liab: true }; groups.push(byKey[k]); }
+    var g = byKey[k];
+    g.rows.push(r);
+    if (r.value !== null) { g.total += r.value; g.has = true; }
+    if (r.side !== "liability") g.liab = false;
+  });
+  if (groupDim) groups.sort(function (a, b) { return b.total - a.total; });
+
+  $("detailList").innerHTML = bar + groups.map(function (g) {
+    var minus = scope === "net" && g.liab ? "−" : "";
+    return '<div class="sheet">' + (groupDim
+      ? '<div class="sheet-h"><span class="inst-n">' + esc(g.label) + '</span><span class="tag">' + g.rows.length +
+        '</span><div class="spacer"></div>' + (g.has ? '<span class="sheet-total">' + esc(minus + fmtRM(g.total)) + "</span>" : "") + "</div>"
+      : "") +
+      g.rows.map(detailRow).join("") + "</div>";
+  }).join("");
+
+  bindAll("#detailList [data-edit-hold]", "data-edit-hold", openHold);
+  bindAll("#detailList [data-edit-asset]", "data-edit-asset", openAsset);
+  bindAll("#detailList [data-edit-liab]", "data-edit-liab", openLiab);
+  bindCells("detailList");
+  bindRowOpeners("detailList");
+}
+
+// One line, one scope: the same drawing as the Net worth trend, without the bands.
+function drawDetailTrend(pts, label) {
+  var el = $("detailTrend");
+  if (pts.length < 2) {
+    el.innerHTML = '<div class="note" style="text-align:center;padding:30px 0">A trend needs at least two months.</div>';
+    return;
+  }
+  var narrow = el.clientWidth && el.clientWidth < 520;
+  var W = narrow ? 360 : 720, H = narrow ? 240 : 200, ml = 62, mr = 12, mt = 12, mb = 28;
+  var pw = W - ml - mr, ph = H - mt - mb;
+  var vals = pts.map(function (p) { return p.value; });
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  if (hi === lo) { hi = lo + 1; }
+  var pad = (hi - lo) * 0.12;
+  lo -= pad; hi += pad;
+  var X = function (i) { return ml + (i / (pts.length - 1)) * pw; };
+  var Y = function (v) { return mt + ph - ((v - lo) / (hi - lo)) * ph; };
+
+  var body = "";
+  [lo, (lo + hi) / 2, hi].forEach(function (t) {
+    var y = Y(t);
+    body += '<line class="gridline" x1="' + ml + '" y1="' + y.toFixed(1) + '" x2="' + (W - mr) + '" y2="' + y.toFixed(1) + '"></line>';
+    body += '<text class="axis-t" x="' + (ml - 8) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">' + esc(shortRM(t)) + "</text>";
+  });
+  var line = pts.map(function (p, i) { return X(i).toFixed(1) + "," + Y(p.value).toFixed(1); }).join(" L");
+  body += '<path d="M' + line + " L" + X(pts.length - 1).toFixed(1) + "," + (mt + ph) + " L" + X(0).toFixed(1) + "," + (mt + ph) +
+    '" fill="var(--accent-tint)" stroke="none"></path>';
+  body += '<path d="M' + line + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>';
+  pts.forEach(function (p, i) {
+    var cx = X(i).toFixed(1), cy = Y(p.value).toFixed(1);
+    body += p.partial
+      ? '<circle cx="' + cx + '" cy="' + cy + '" r="3.4" fill="var(--bg)" stroke="var(--warn)" stroke-width="2"></circle>'
+      : '<circle cx="' + cx + '" cy="' + cy + '" r="3" fill="var(--accent)"></circle>';
+  });
+  var step = Math.max(1, Math.ceil(pts.length / (narrow ? 4 : 6)));
+  pts.forEach(function (p, i) {
+    if (i % step !== 0 && i !== pts.length - 1) return;
+    body += '<text class="axis-t" x="' + X(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(monthLabel(p.period)) + "</text>";
+  });
+
+  el.innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" role="img" ' +
+    'aria-label="' + esc(label) + " over time. Use the arrow keys to read each month." + '">' + body + "</svg>" +
+    (pts.some(function (p) { return p.partial; })
+      ? '<div class="legend"><span class="lg"><span class="lgd" style="border:2px solid var(--warn);background:var(--bg)"></span>Carried forward</span></div>'
+      : "");
+
+  WM.attachHover(el, {
+    plot: { top: mt, bottom: mt + ph },
+    points: pts.map(function (p, i) {
+      var prev = i ? pts[i - 1] : null;
+      var d = prev ? p.value - prev.value : null;
+      return {
+        x: X(i),
+        markers: [{ y: Y(p.value), colour: "var(--accent)", hollow: p.partial }],
+        html: '<div class="hv-h">' + esc(longMonth(p.period)) + "</div>" +
+          '<div class="hv-row"><span>' + esc(label) + "</span><b>" + esc(fmtRM(p.value)) +
+          (p.partial ? '<span class="stale-mark">*</span>' : "") + "</b></div>" +
+          (d === null ? "" : '<div class="hv-row"><span>Since last month</span><b class="' + (d >= 0 ? "up" : "dn") + '">' +
+            (d >= 0 ? "▲ +" : "▼ −") + esc(fmtRM(Math.abs(d))) + "</b></div>") +
+          (p.partial ? '<div class="hv-note">* Includes figures carried forward from an earlier month.</div>' : "")
+      };
+    })
+  });
+}
 
 function render() {
   if (!$("periodPick").value) $("periodPick").value = WM.currentPeriod();
@@ -4136,6 +4542,7 @@ function render() {
   renderEpf();
   renderLiabilities();
   renderAssets();
+  renderDetail();
   renderStrategy();
   renderLoans();
   renderRecap();
@@ -4453,4 +4860,5 @@ if (state.settings && state.settings.theme) {
   document.documentElement.setAttribute("data-theme", state.settings.theme);
 }
 render();
+applyRoute();
 restoreFile();
