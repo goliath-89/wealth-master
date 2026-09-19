@@ -322,6 +322,20 @@ svg.chart [data-slice].hv-on{transform:scale(1.04)}
 svg.chart [data-slice]:focus-visible{stroke:var(--tx);stroke-width:2}
 .lg[data-slice]{cursor:default;border-radius:6px;padding:2px 6px;margin:-2px -6px}
 .lg[data-slice].hv-on{background:var(--surface3);color:var(--tx)}
+.zoombar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.zrange{font-size:12px;color:var(--tx2);margin-right:auto;font-variant-numeric:tabular-nums}
+.zbtn{
+  min-width:40px;min-height:32px;padding:0 10px;font:inherit;font-size:12px;font-weight:600;
+  color:var(--tx2);background:var(--surface2);border:.5px solid var(--line2);border-radius:8px;cursor:pointer;
+}
+.zbtn:hover:not(:disabled){color:var(--tx);background:var(--surface3)}
+.zbtn[aria-pressed="true"]{color:var(--accent);border-color:var(--accent);background:var(--accent-tint)}
+.zbtn:disabled{opacity:.4;cursor:default}
+.zbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(pointer:coarse){.zbtn{min-height:44px;min-width:44px}}
+svg.ov{display:block;width:100%;height:auto;margin-top:6px;touch-action:none;cursor:grab;user-select:none}
+.zdrag svg.chart,.zdrag svg.ov{cursor:grabbing}
+.zdrag .hv-tip,.zdrag .hv{display:none!important}
 .hv-h{font-weight:600;font-size:12.5px;margin-bottom:6px}
 .hv-row{display:flex;justify-content:space-between;gap:14px;padding:2px 0;color:var(--tx2);white-space:nowrap}
 .hv-row b{color:var(--tx);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
