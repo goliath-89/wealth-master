@@ -118,5 +118,8 @@
     };
   }
 
-  return { categoryTotals: categoryTotals, deltaOver: deltaOver, ASSET_CATEGORIES: ASSET_CATEGORIES };
+  return {
+    categoryTotals: categoryTotals, deltaOver: deltaOver, ASSET_CATEGORIES: ASSET_CATEGORIES,
+    holdingCategory: holdingCategory
+  };
 });

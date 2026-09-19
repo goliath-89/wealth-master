@@ -158,6 +158,63 @@
   </div>
 </div>
 
+<div class="view" id="v-detail">
+  <div class="sec">
+    <div class="sec-h">
+      <button class="btn sm" id="detailBack">&larr; Back</button>
+      <div class="spacer"></div>
+      <label class="fl" for="detailPeriod" style="margin:0 8px 0 0">Month</label>
+      <input type="month" id="detailPeriod" style="width:auto;min-width:150px">
+    </div>
+    <div id="detailHead"></div>
+  </div>
+  <div id="detailBody">
+    <div class="sec">
+      <div class="sec-h"><div class="sec-t">Trend</div></div>
+      <div class="card"><div id="detailTrend"></div></div>
+    </div>
+    <div class="sec">
+      <div class="sec-h">
+        <div class="sec-t">Breakdown</div>
+        <div class="spacer"></div>
+        <label class="fl" for="detailDim" style="margin:0 8px 0 0">Second view</label>
+        <select id="detailDim" style="width:auto;min-width:150px"></select>
+      </div>
+      <div class="card">
+        <div class="donuts">
+          <div class="donut pick">
+            <div class="donut-t" id="detailCatTitle"></div>
+            <div id="detailCatChart"></div>
+            <div id="detailCatLegend"></div>
+          </div>
+          <div class="donut pick">
+            <div class="donut-t" id="detailDimTitle"></div>
+            <div id="detailDimChart"></div>
+            <div id="detailDimLegend"></div>
+          </div>
+        </div>
+        <p class="note" style="margin-top:12px" id="detailChartNote"></p>
+      </div>
+    </div>
+    <div class="sec" id="detailMovers" style="display:none">
+      <div class="sec-h"><div class="sec-t">Biggest moves this month</div></div>
+      <div class="card" id="detailMoversList"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-h">
+        <div class="sec-t" id="detailListTitle">Lines</div>
+        <div class="spacer"></div>
+        <input type="search" id="detailFilter" placeholder="Filter by name" aria-label="Filter lines by name" style="width:auto;min-width:150px">
+        <label class="fl" for="detailGroup" style="margin:0 8px 0 8px">Group by</label>
+        <select id="detailGroup" style="width:auto;min-width:130px"></select>
+      </div>
+      <div id="detailChip"></div>
+      <div id="detailList"></div>
+      <p class="note" style="margin-top:10px">Figures here are the same month-end entries as on the Accounts screen: change one and it changes everywhere.</p>
+    </div>
+  </div>
+</div>
+
 <div class="view" id="v-accounts">
   <div class="sec">
     <div class="sec-h">
@@ -923,6 +980,7 @@
 <script src="js/categories.js?v=dev"></script>
 <script src="js/recap.js?v=dev"></script>
 <script src="js/chart-hover.js?v=dev"></script>
+<script src="js/drill.js?v=dev"></script>
 <script src="js/ui-shell.js?v=dev"></script>
 <script src="js/app.js?v=dev"></script>
 </body>
