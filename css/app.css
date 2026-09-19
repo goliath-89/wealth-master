@@ -330,6 +330,7 @@ a.strip-i:hover .strip-k,a.kpi-link:hover .k,a.kpi-split:hover .k{color:var(--tx
 a.kpi:focus-visible,a.strip-i:focus-visible,a.kpi-link:focus-visible,a.kpi-split:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 .detail-h{grid-column:auto;max-width:520px}
 .donut.pick [data-slice]{cursor:pointer}
+.donut.pick .lg[data-slice]{cursor:pointer}
 .sortbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:10px;font-size:12px;color:var(--tx2)}
 .sortbar-n{margin-left:auto;color:var(--tx3)}
 .mover{display:grid;grid-template-columns:minmax(90px,1.2fr) 2fr auto;gap:12px;align-items:center;padding:6px 0}
@@ -358,6 +359,9 @@ a.kpi:focus-visible,a.strip-i:focus-visible,a.kpi-link:focus-visible,a.kpi-split
 svg.ov{display:block;width:100%;height:auto;margin-top:6px;touch-action:none;cursor:grab;user-select:none}
 .zdrag svg.chart,.zdrag svg.ov{cursor:grabbing}
 .zdrag .hv-tip,.zdrag .hv{display:none!important}
+.hv-total{border-top:.5px solid var(--line2);margin-top:4px;padding-top:6px}
+.hv-none{color:var(--tx3);font-weight:400}
+.hv-plain{border-top:0;padding-top:0;color:var(--tx3)}
 .hv-h{font-weight:600;font-size:12.5px;margin-bottom:6px}
 .hv-row{display:flex;justify-content:space-between;gap:14px;padding:2px 0;color:var(--tx2);white-space:nowrap}
 .hv-row b{color:var(--tx);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}

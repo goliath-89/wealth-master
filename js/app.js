@@ -1209,8 +1209,51 @@ function drawForecastChart(projections, months, real) {
 
   $("forecastChart").innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H +
     '" preserveAspectRatio="xMidYMid meet" role="img" ' +
-    'aria-label="Net worth recorded to date, continuing into three projected scenarios">' +
+    'aria-label="Net worth recorded to date, continuing into three projected scenarios. ' +
+    'Use the arrow keys to read each month.">' +
     body + "</svg>";
+
+  // A projection is a range, never one number, so pointing at a future month reads every
+  // scenario side by side and says outright that they are assumptions.
+  var lastPeriod = histLen ? history[histLen - 1].period : WM.currentPeriod();
+  var offset = Math.max(0, histLen - 1);
+  var hoverPts = [];
+  for (var hi2 = 0; hi2 < total; hi2++) {
+    (function (i) {
+      var recorded = i < histLen;
+      var k = i - offset;
+      var period = recorded ? history[i].period : (function () {
+        var p = lastPeriod;
+        for (var s = 0; s < k; s++) p = WM.nextPeriod(p);
+        return p;
+      })();
+      function val(p, pt) { return real ? WM.inRealTerms(pt.net, p.assumptions.inflationPct, pt.monthsAhead) : pt.net; }
+      hoverPts.push({
+        x: X(i),
+        markers: function () {
+          if (recorded) return [{ y: Y(history[i].net), colour: "var(--tx)" }];
+          return projections.filter(function (p) { return p.points[k]; }).map(function (p, idx) {
+            return { y: Y(val(p, p.points[k])), colour: scenarioColour(p.scenarioName, idx) };
+          });
+        },
+        html: function () {
+          var h = '<div class="hv-h">' + esc(longMonth(period)) + (recorded ? "" : " · projected") + "</div>";
+          if (recorded) {
+            return h + '<div class="hv-row"><span><i class="hv-sw" style="background:var(--tx)"></i>Recorded</span><b>' +
+              esc(fmtRM(history[i].net)) + (history[i].partial ? '<span class="stale-mark">*</span>' : "") + "</b></div>" +
+              (history[i].partial ? '<div class="hv-note">* Includes figures carried forward from an earlier month.</div>' : "");
+          }
+          var rows = projections.filter(function (p) { return p.points[k]; }).map(function (p, idx) {
+            return '<div class="hv-row"><span><i class="hv-sw" style="background:' + scenarioColour(p.scenarioName, idx) +
+              '"></i>' + esc(p.scenarioName) + "</span><b>" + esc(fmtRM(val(p, p.points[k]))) + "</b></div>";
+          }).join("");
+          return h + rows + '<div class="hv-note hv-plain">' + (real ? "In today's money. " : "") +
+            "Projected from your assumptions, not a promise.</div>";
+        }
+      });
+    })(hi2);
+  }
+  WM.attachHover($("forecastChart"), { plot: { top: mt, bottom: mt + ph }, points: hoverPts });
 
   $("forecastLegend").innerHTML = '<div class="legend">' +
     '<span class="lg"><span class="lgd" style="background:var(--tx)"></span>Recorded</span>' +
@@ -2271,7 +2314,43 @@ function drawSeriesChart(elId, data, hidden, ariaLabel) {
   });
 
   el.innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
-    'role="img" aria-label="' + esc(ariaLabel) + '">' + body + "</svg>";
+    'role="img" aria-label="' + esc(ariaLabel) + '. Use the arrow keys to read each month.">' + body + "</svg>";
+
+  // One month across every line on show. A holding with nothing for that month says so:
+  // blank is not zero.
+  WM.attachHover(el, {
+    plot: { top: mt, bottom: mt + ph },
+    points: data.periods.map(function (period, i) {
+      return {
+        x: X(i),
+        markers: function () {
+          var m = [];
+          visible.forEach(function (sr) {
+            var pt = sr.points[i];
+            if (pt && pt.value !== null) {
+              m.push({ y: Y(pt.value), colour: sliceColour(data.series.indexOf(sr)), hollow: !!pt.stale });
+            }
+          });
+          return m;
+        },
+        html: function () {
+          var carried = false;
+          var rows = visible.map(function (sr) {
+            var pt = sr.points[i];
+            var has = pt && pt.value !== null;
+            if (has && pt.stale) carried = true;
+            return '<div class="hv-row"><span><i class="hv-sw" style="background:' +
+              sliceColour(data.series.indexOf(sr)) + '"></i>' + esc(sr.name) + "</span><b>" +
+              (has ? esc(data.unit === "percent" ? pt.value.toFixed(2) + "%" : fmtRM(pt.value)) +
+                (pt.stale ? '<span class="stale-mark">*</span>' : "") : '<span class="hv-none">no entry</span>') +
+              "</b></div>";
+          }).join("");
+          return '<div class="hv-h">' + esc(longMonth(period)) + "</div>" + rows +
+            (carried ? '<div class="hv-note">* Carried forward from an earlier month.</div>' : "");
+        }
+      };
+    })
+  });
 }
 
 // The legend doubles as the series switches (FR-6.3). Each entry is a real button with
@@ -2374,8 +2453,31 @@ function renderIncome() {
   });
 
   $("incomeChart").innerHTML = '<svg class="chart" viewBox="0 0 ' + W + " " + H +
-    '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Monthly income by source">' +
-    body + "</svg>";
+    '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Monthly income by source. ' +
+    'Use the arrow keys to read each month.">' + body + "</svg>";
+
+  WM.attachHover($("incomeChart"), {
+    plot: { top: mt, bottom: mt + ph },
+    points: data.rows.map(function (row, i) {
+      return {
+        x: ml + slot * i + slot / 2,
+        html: function () {
+          var parts = row.parts.filter(function (p) { return p.value > 0; });
+          if (!parts.length) {
+            return '<div class="hv-h">' + esc(longMonth(row.period)) + "</div>" +
+              '<div class="hv-note hv-plain">No income recorded. Income is not carried forward.</div>';
+          }
+          var total = parts.reduce(function (a, p) { return a + p.value; }, 0);
+          return '<div class="hv-h">' + esc(longMonth(row.period)) + "</div>" +
+            parts.map(function (p) {
+              return '<div class="hv-row"><span><i class="hv-sw" style="background:' +
+                sliceColour(row.parts.indexOf(p)) + '"></i>' + esc(p.name || "") + "</span><b>" + esc(fmtRM(p.value)) + "</b></div>";
+            }).join("") +
+            (parts.length > 1 ? '<div class="hv-row hv-total"><span>Total</span><b>' + esc(fmtRM(total)) + "</b></div>" : "");
+        }
+      };
+    })
+  });
 
   $("incomeLegend").innerHTML = '<div class="legend">' + data.sources.map(function (src, i) {
     return '<span class="lg"><span class="lgd" style="background:' + sliceColour(i) + '"></span>' +
@@ -2456,6 +2558,30 @@ function drawDonut(chartId, legendId, slices, total, centre, ariaLabel) {
   }));
 }
 
+// A donut on the Net worth screen opens the lines behind a slice. Slices and legend rows are
+// redrawn with the chart, so the click is handled once on their containers; `go` is null for
+// a cut the drill-down has no matching filter for, which leaves the chart hover-only.
+function makePickable(chartId, legendId, labels, go) {
+  var chart = $(chartId), legend = $(legendId);
+  var donut = chart.closest ? chart.closest(".donut") : null;
+  chart._pick = go ? { labels: labels, go: go } : null;
+  if (donut) donut.classList.toggle("pick", !!go);
+  if (chart._pickBound) return;
+  chart._pickBound = true;
+  function handle(e) {
+    var n = e.target && e.target.closest ? e.target.closest("[data-slice]") : null;
+    if (!n || !chart._pick) return;
+    var label = chart._pick.labels[parseInt(n.getAttribute("data-slice"), 10)];
+    if (label !== undefined) chart._pick.go(label);
+  }
+  [chart, legend].forEach(function (node) {
+    node.addEventListener("click", handle);
+    node.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handle(e); }
+    });
+  });
+}
+
 function sliceSummary(s) {
   return s.label + ", " + s.share.toFixed(1) + " percent, " + fmtRM(s.value);
 }
@@ -2483,6 +2609,9 @@ function renderCategoryDonut() {
     };
   });
   drawDonut("classChart", "classLegend", slices, t.assets, "assets", "Assets by category");
+  makePickable("classChart", "classLegend", slices.map(function (s) { return s.label; }), function (label) {
+    openDetail("assets", { dim: "category", value: label });
+  });
 }
 
 function renderAllocation() {
@@ -2501,6 +2630,12 @@ function renderAllocation() {
   $("allocTitle").textContent = "By " + alloc.label.charAt(0).toLowerCase() + alloc.label.slice(1);
   drawDonut("allocChart", "allocLegend", alloc.slices, alloc.total, "assets",
     "Allocation by " + alloc.label);
+  // Only the cuts the drill-down also has: institution and liquidity.
+  var pickDim = { institution: "institution", liquidity: "liquidity" }[alloc.dimension];
+  makePickable("allocChart", "allocLegend", alloc.slices.map(function (s) { return s.label; }),
+    pickDim ? function (label) {
+      openDetail("assets", { dim: pickDim, value: label === "Unknown" ? "—" : label });
+    } : null);
 }
 
 // The date the last debt clears, which the payoff engine already knows and no screen was
@@ -2817,13 +2952,50 @@ function drawAmortChart(schedule, simulated) {
       '" text-anchor="middle">' + esc(r.period ? monthLabel(r.period) : String(r.n)) + "</text>";
   });
 
-  return '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
-    'role="img" aria-label="Interest and principal per instalment over the life of the loan">' +
+  var key = queueHover({
+    plot: { top: mt, bottom: mt + ph },
+    points: rows.map(function (r, i) {
+      return {
+        x: X(i),
+        markers: function () {
+          return [{ y: Y(r.interest), colour: "var(--bad)" }, { y: Y(r.payment), colour: "var(--accent)" }];
+        },
+        html: function () {
+          return '<div class="hv-h">Instalment ' + esc(String(r.n)) + (r.period ? " · " + esc(longMonth(r.period)) : "") + "</div>" +
+            '<div class="hv-row"><span><i class="hv-sw" style="background:var(--bad)"></i>Interest</span><b>' + esc(fmtRM(r.interest)) + "</b></div>" +
+            '<div class="hv-row"><span><i class="hv-sw" style="background:var(--accent)"></i>Principal</span><b>' + esc(fmtRM(r.principal)) + "</b></div>" +
+            '<div class="hv-row hv-total"><span>Payment</span><b>' + esc(fmtRM(r.payment)) + "</b></div>" +
+            '<div class="hv-row"><span>Balance after</span><b>' + esc(fmtRM(r.balance)) + "</b></div>";
+        }
+      };
+    })
+  });
+  return '<div data-hvkey="' + key + '"><svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
+    'role="img" aria-label="Interest and principal per instalment over the life of the loan. Use the arrow keys to read each instalment.">' +
     body + "</svg>" +
     '<div class="legend">' +
     '<span class="lg"><span class="lgd" style="background:var(--bad);opacity:.7"></span>Interest</span>' +
     '<span class="lg"><span class="lgd" style="background:var(--accent);opacity:.7"></span>Principal</span>' +
-    "</div>";
+    "</div></div>";
+}
+
+// The loan charts are built as strings and put on the page by their caller, so the hover
+// for each is queued here and attached once its drawing exists.
+var hoverQueue = {}, hoverSeq = 0;
+function queueHover(opts) {
+  var key = "hv" + (++hoverSeq);
+  hoverQueue[key] = opts;
+  return key;
+}
+function attachQueuedHover(root) {
+  Array.prototype.forEach.call(root.querySelectorAll("[data-hvkey]"), function (host) {
+    var opts = hoverQueue[host.getAttribute("data-hvkey")];
+    if (opts) WM.attachHover(host, opts);
+    delete hoverQueue[host.getAttribute("data-hvkey")];
+    host.removeAttribute("data-hvkey");
+  });
+  // Anything queued for a drawing that never reached the page is dropped, not kept.
+  hoverQueue = {};
 }
 
 // Baseline against accelerated balance over time (FR-6.7).
@@ -2850,12 +3022,35 @@ function drawPayoffChart(baseline, accelerated) {
     '" text-anchor="end">' + esc(shortRM(maxBal)) + "</text>" +
     line(baseline.rows, "var(--tx3)", true) + line(accelerated.rows, "var(--good)", false);
 
-  return '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
-    'role="img" aria-label="Balance over time, contractual against accelerated">' + body + "</svg>" +
+  var key = queueHover({
+    plot: { top: mt, bottom: mt + ph },
+    points: Array.apply(null, { length: span }).map(function (_, i) {
+      var b = baseline.rows[i], a = accelerated.rows[i];
+      return {
+        x: X(i),
+        markers: function () {
+          var m = [];
+          if (b) m.push({ y: Y(b.balance), colour: "var(--tx3)" });
+          if (a) m.push({ y: Y(a.balance), colour: "var(--good)" });
+          return m;
+        },
+        html: function () {
+          var r = b || a;
+          return '<div class="hv-h">Instalment ' + esc(String(r.n)) + (r.period ? " · " + esc(longMonth(r.period)) : "") + "</div>" +
+            '<div class="hv-row"><span><i class="hv-sw" style="background:var(--tx3)"></i>As contracted</span><b>' +
+              (b ? esc(fmtRM(b.balance)) : "Cleared") + "</b></div>" +
+            '<div class="hv-row"><span><i class="hv-sw" style="background:var(--good)"></i>Paying more</span><b>' +
+              (a ? esc(fmtRM(a.balance)) : "Cleared") + "</b></div>";
+        }
+      };
+    })
+  });
+  return '<div data-hvkey="' + key + '"><svg class="chart" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" ' +
+    'role="img" aria-label="Balance over time, contractual against accelerated. Use the arrow keys to read each instalment.">' + body + "</svg>" +
     '<div class="legend">' +
     '<span class="lg"><span class="lgd" style="background:var(--tx3)"></span>As contracted</span>' +
     '<span class="lg"><span class="lgd" style="background:var(--good)"></span>Paying more</span>' +
-    "</div>";
+    "</div></div>";
 }
 
 // Only shown with two or more debts — with one, "which first" is not a question.
@@ -3010,6 +3205,8 @@ function renderLoans() {
         '<th class="r">Balance</th></tr></thead><tbody>' + rows + "</tbody></table></div>" : "") +
       "</div>";
   }).join("");
+
+  attachQueuedHover($("loanList"));
 
   bindAll("[data-sched]", "data-sched", function (id) {
     openSchedules[id] = !openSchedules[id];
