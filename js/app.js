@@ -45,13 +45,122 @@ function saveToFile() {
   });
 }
 
-function toast(msg) {
+// `action` puts one button on the message ({ label, fn }) — Undo, for a change that can be
+// taken back. Such a message stays long enough to be read and reached.
+function toast(msg, action) {
   var s = $("snack");
+  var btn = $("snackAction");
   $("snackMsg").textContent = msg;
+  if (action) {
+    btn.hidden = false;
+    btn.textContent = action.label;
+    btn.onclick = function () { s.classList.remove("on"); action.fn(); };
+  } else {
+    btn.hidden = true;
+    btn.onclick = null;
+  }
   s.classList.add("on");
   clearTimeout(toast._t);
-  toast._t = setTimeout(function () { s.classList.remove("on"); }, 4200);
+  toast._t = setTimeout(function () { s.classList.remove("on"); }, action ? 8000 : 4200);
 }
+
+// ---- undo (P8) ---------------------------------------------------------------------------
+// A figure can be typed over in three places and saves the moment the cursor leaves it, so
+// a slipped digit replaces last month's number without a word. Every write of a month's
+// figures first remembers what was there, and Undo puts exactly that back through the same
+// domain function the write used, never by editing the store behind its back.
+//
+// Steps come off in the order they were made, so undoing never disturbs a later edit. The
+// stack is dropped whenever the whole state is replaced (a file load, an import, a wipe): a
+// step captured against data that no longer exists must not be able to write into the new.
+var undoStack = [];
+var undoSeq = 0;
+var UNDO_MAX = 50;
+
+function resetUndo() { undoStack.length = 0; }
+
+function subjectName(id) {
+  var s = WM.byId(state.holdings, id) || WM.byId(state.liabilities, id) || WM.byId(state.assets, id);
+  return s ? s.name : "figure";
+}
+
+function captureValuations(period, ids) {
+  return ids.map(function (id) {
+    var v = WM.valuationFor(state, id, period);
+    return { id: id, before: v ? JSON.parse(JSON.stringify(v)) : null };
+  });
+}
+
+function restoreValuation(period, cap) {
+  var subject = WM.byId(state.holdings, cap.id) || WM.byId(state.liabilities, cap.id) || WM.byId(state.assets, cap.id);
+  if (!subject || subject.deleted) return;
+  var b = cap.before;
+  var entry = b
+    ? { holdingId: b.holdingId, liabilityId: b.liabilityId, assetId: b.assetId, period: b.period, note: b.note }
+    // Nothing was recorded before, so putting it back means clearing what was written.
+    : { holdingId: cap.id, period: period };
+  if (b) {
+    WM.AMOUNT_FIELDS.concat(WM.UNIT_FIELDS, WM.RATE_FIELDS).forEach(function (f) { entry[f] = b[f]; });
+  }
+  WM.upsertValuation(state, entry, deviceId);
+}
+
+// Whether writing left any of these figures different. Saving the same number again reports an
+// update, but there is nothing to take back, and an Undo step that does nothing is a trap.
+function figuresDiffer(before, after) {
+  var fields = ["balance", "contribution", "withdrawal", "income", "units", "unitPrice", "fxRate", "note"];
+  return before.some(function (cap, i) {
+    var x = cap.before, y = after[i].before;
+    if (!x || !y) return x !== y;
+    return fields.some(function (f) { return (x[f] === undefined ? null : x[f]) !== (y[f] === undefined ? null : y[f]); });
+  });
+}
+
+// Runs `write`, and if it changed anything, keeps what it replaced. Returns what write did.
+function recordChange(label, period, ids, write) {
+  var before = captureValuations(period, ids);
+  var res = write();
+  if (res && (res.created || res.updated || res.deleted) && figuresDiffer(before, captureValuations(period, ids))) {
+    undoStack.push({ label: label, period: period, before: before });
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    undoSeq++;
+  }
+  return res;
+}
+
+function undoLast() {
+  var step = undoStack.pop();
+  if (!step) { toast("Nothing to undo"); return false; }
+  step.before.forEach(function (cap) { restoreValuation(step.period, cap); });
+  // The guided month-end forgets a figure that has just been taken back.
+  if (guide.period === step.period) {
+    var gone = {};
+    step.before.forEach(function (cap) { gone[cap.id] = true; });
+    guide.log = guide.log.filter(function (l) { return !gone[l.id]; });
+    guide.focus = true;
+  }
+  commit();
+  toast("Undone — " + step.label);
+  return true;
+}
+
+function undoAction() { return { label: "Undo", fn: undoLast }; }
+
+// Ctrl/Cmd+Z. Inside a box with text typed into it the browser's own undo is for that text,
+// so it is left alone; a box holding what was last saved has nothing for the browser to
+// undo, and the shortcut takes back the save instead.
+document.addEventListener("keydown", function (e) {
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || String(e.key).toLowerCase() !== "z") return;
+  if (document.querySelector(".modal-bg.on")) return;
+  var t = e.target, tag = t && t.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+    var was = t.getAttribute("data-was");
+    if (was === null || t.value !== was) return;
+  }
+  if (!undoStack.length) return;
+  e.preventDefault();
+  undoLast();
+});
 
 function liveCount(list) {
   return list.filter(function (r) { return !r.deleted; }).length;
@@ -1614,6 +1723,7 @@ $("reviewConfirmBtn").onclick = function () {
     { keepNotes: $("reviewKeepNotes").checked });
 
   importUndo = { state: snapshot, summary: summary, fileName: pendingImport.fileName };
+  resetUndo();
   resetReview();
   commit();
 
@@ -1630,6 +1740,7 @@ $("undoImportBtn").onclick = function () {
   // Restoring the snapshot wholesale is the reversal. Anything entered by hand since the
   // import would go with it, which is why the button says so and disappears once used.
   state = importUndo.state;
+  resetUndo();
   var undone = importUndo.summary;
   importUndo = null;
   commit();
@@ -1764,6 +1875,7 @@ $("csvConfirmBtn").onclick = function () {
     summary: { rows: made.new + made.updated + made.deleted },
     fileName: pendingCsv.fileName
   };
+  resetUndo();
   resetCsvReview();
   commit();
 
@@ -3330,6 +3442,7 @@ $("assetSave").onclick = function () {
   }
   // The month the sheet is on, not always the current one, and the rest of that month's
   // entry is kept.
+  var undoMark = undoSeq;
   var assetBal = writeBalanceIfChanged($("s_value"), "assetId", saved.id, sheetPeriod());
   if (assetBal.errors.length) {
     showErrors("assetErr", ["Value must be a number"]);
@@ -3338,7 +3451,7 @@ $("assetSave").onclick = function () {
 
   closeModal("assetModal");
   commit();
-  toast(editing.asset ? "Asset updated" : "Asset added");
+  toast(editing.asset ? "Asset updated" : "Asset added", undoSeq !== undoMark ? undoAction() : null);
 };
 
 $("assetDelete").onclick = function () { removeRecord("assets", editing.asset, "assetModal", "Asset"); };
@@ -3503,6 +3616,7 @@ function monthSubjects() {
 function renderMonth() {
   var period = $("periodPick").value;
   var holdings = monthSubjects();
+  renderMonthGuide();
 
   if (!holdings.length) {
     $("monthRows").innerHTML = '<div class="card"><div class="empty">' +
@@ -3638,7 +3752,11 @@ $("saveMonthBtn").onclick = function () {
     return row;
   });
 
-  var res = WM.applyMonth(state, period, rows, deviceId);
+  var mark = undoSeq;
+  var ids = rows.map(function (r) { return r.holdingId || r.liabilityId; });
+  var res = recordChange("month-end for " + monthLabel(period), period, ids, function () {
+    return WM.applyMonth(state, period, rows, deviceId);
+  });
   var saved = res.created + res.updated;
 
   // Save first — commit() re-renders these rows from state, so anything marked on the
@@ -3678,7 +3796,7 @@ $("saveMonthBtn").onclick = function () {
     if (saved) parts.push(saved + " saved");
     if (res.deleted) parts.push(res.deleted + " cleared");
     if (res.errors.length) parts.push(res.errors.length + " skipped");
-    toast(parts.join(", ") + " for " + monthLabel(period));
+    toast(parts.join(", ") + " for " + monthLabel(period), undoSeq !== mark ? undoAction() : null);
   } else if (res.errors.length) {
     toast("Nothing saved — " + res.errors.length + " row(s) need fixing");
   } else {
@@ -3687,6 +3805,186 @@ $("saveMonthBtn").onclick = function () {
 };
 
 $("periodPick").onchange = renderMonth;
+
+// ---- guided month-end (P8) ---------------------------------------------------------------
+// The month-end screen leads with what is still to do: one figure at a time, the last known
+// figure beside the box, Enter to save and move on. The full grid stays underneath for the
+// occasions that want every field, including added, withdrawn, income and exchange rates.
+var guide = { period: null, skipped: {}, log: [], draft: {}, focus: false };
+
+function guideKey(kind) { return kind === "holding" ? "holdingId" : kind === "asset" ? "assetId" : "liabilityId"; }
+function guideLabel(kind) {
+  return kind === "liability" ? "Outstanding balance" : kind === "asset" ? "Estimated value" : "Closing balance";
+}
+var GUIDE_FIELDS = { contribution: "guideAdded", withdrawal: "guideWithdrawn", income: "guideIncome" };
+
+function guideFigure(item, n) { return item.needsRate ? fmtNative(n, item.currency) : fmtRM(n); }
+
+function renderMonthGuide() {
+  var box = $("monthGuide");
+  var period = $("periodPick").value;
+  if (!WM.isPeriod(period)) { box.innerHTML = ""; return; }
+  if (guide.period !== period) guide = { period: period, skipped: {}, log: [], draft: {}, focus: false };
+
+  var q = WM.monthQueue(state, period);
+  if (!q.total && !q.pricedByUnits.length) { box.innerHTML = ""; return; }
+
+  var pending = q.items.filter(function (i) { return !guide.skipped[i.id]; });
+  var skipped = q.items.length - pending.length;
+  var current = pending[0] || null;
+  var html = current ? guideStepHtml(q, current, pending.length)
+    : skipped ? guideSkippedHtml(q, skipped)
+    : guideDoneHtml(q);
+  if (q.pricedByUnits.length) {
+    html += '<p class="note" style="margin-top:8px">Priced by units, so not asked for here: ' +
+      q.pricedByUnits.map(function (s) { return esc(s.name); }).join(", ") + ". Update these from Accounts.</p>";
+  }
+  box.innerHTML = html;
+
+  Array.prototype.forEach.call(box.querySelectorAll("[data-gfield]"), function (el) {
+    el.oninput = function () {
+      guide.draft[current.id] = guide.draft[current.id] || {};
+      guide.draft[current.id][el.id] = el.value;
+      el.classList.remove("badfield");
+    };
+    el.onkeydown = function (e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      guideSave(current, false);
+    };
+  });
+  if (current) {
+    wire("guideSave", function () { guideSave(current, false); });
+    wire("guideSame", function () { guideSave(current, true); });
+    wire("guideSkip", function () { guide.skipped[current.id] = true; guide.focus = true; renderMonthGuide(); });
+  }
+  wire("guideReview", function () { guide.skipped = {}; guide.focus = true; renderMonthGuide(); });
+  wire("guideUndo", undoLast);
+
+  if (guide.focus && $("v-month").classList.contains("on")) {
+    var f = $("guideBalance");
+    if (f) { f.focus(); f.select(); }
+  }
+  guide.focus = false;
+}
+
+function guideStepHtml(q, item, left) {
+  var d = guide.draft[item.id] || {};
+  var ex = item.existing || {};
+  var pct = q.total ? Math.round(q.recorded / q.total * 100) : 0;
+  var native = item.needsRate;
+  var label = guideLabel(item.kind) + (native ? " (" + item.currency + ")" : "");
+
+  function field(id, text, value, placeholder) {
+    var shown = d[id] !== undefined ? d[id] : value;
+    return '<div><label for="' + id + '">' + esc(text) + "</label>" +
+      '<input type="text" inputmode="decimal" id="' + id + '" data-gfield data-was="" value="' + esc(shown) + '" placeholder="' + esc(placeholder) + '"></div>';
+  }
+  var stored = function (f) { return ex[f] === null || ex[f] === undefined ? "" : (native ? String(ex[f]) : WM.formatAmount(ex[f])); };
+
+  var optional = "";
+  if (item.kind === "holding") {
+    optional = '<details class="guide-more"><summary>Also added, withdrawn, income</summary><div class="mgrid">' +
+      field("guideAdded", "Added", stored("contribution"), "—") +
+      field("guideWithdrawn", "Withdrawn", stored("withdrawal"), "—") +
+      field("guideIncome", "Income", stored("income"), "—") + "</div></details>";
+  }
+  var rate = "";
+  if (native) {
+    var carried = WM.rateAt(state, item.id, q.period);
+    rate = field("guideRate", "1 " + item.currency + " in RM", ex.fxRate ? String(ex.fxRate) : "",
+      carried ? String(carried.rate) + (carried.stale ? " from " + carried.sourcePeriod : "") : "needed");
+  }
+
+  return '<div class="card guide"><div class="guide-p"><span>' + left + (left === 1 ? " figure" : " figures") +
+    " left for " + esc(monthLabel(q.period)) + "</span><span>" + q.recorded + " of " + q.total + " recorded</span></div>" +
+    '<div class="guide-bar" role="progressbar" aria-label="Recorded so far" aria-valuemin="0" aria-valuemax="' + q.total +
+      '" aria-valuenow="' + q.recorded + '"><i style="width:' + pct + '%"></i></div>' +
+    '<div class="guide-n">' + esc(item.name) + (item.status === "fresh" ? ' <span class="tag">New</span>' : "") + "</div>" +
+    '<div class="guide-s">' + esc(item.context) + "</div>" +
+    '<div class="guide-prior">' + (item.prior
+      ? "Last recorded " + esc(guideFigure(item, item.prior.balance)) + " in " + esc(monthLabel(item.prior.period))
+      : "Nothing recorded for this yet") + "</div>" +
+    '<div class="mgrid guide-main">' +
+      field("guideBalance", label, d.guideBalance !== undefined ? d.guideBalance : "",
+        item.prior ? WM.formatAmount(item.prior.balance) : "—") +
+      rate + "</div>" + optional +
+    '<div class="row guide-actions"><button class="btn pri" id="guideSave">Save &amp; next</button>' +
+    (item.prior ? '<button class="btn" id="guideSame" title="Record last month\'s figure as this month\'s">Same as last month</button>' : "") +
+    '<button class="btn" id="guideSkip">Skip</button></div>' +
+    '<p class="note guide-hint">Enter saves and moves on. A figure you do not have yet: skip it. Blank is not saved as zero.</p></div>';
+}
+
+function guideSkippedHtml(q, skipped) {
+  return '<div class="card guide"><div class="guide-n">' + skipped + (skipped === 1 ? " figure" : " figures") +
+    " skipped</div>" + '<div class="guide-s">Everything else is recorded for ' + esc(monthLabel(q.period)) + ".</div>" +
+    '<div class="row guide-actions"><button class="btn pri" id="guideReview">Go back to them</button></div></div>';
+}
+
+function guideDoneHtml(q) {
+  var pos = WM.positionAt(state, q.period);
+  var prev = WM.positionAt(state, WM.prevPeriod(q.period));
+  var move = "";
+  if (prev.lines.length) {
+    var d = pos.net - prev.net;
+    move = ' <span class="' + (d >= 0 ? "up" : "dn") + '">' + (d >= 0 ? "▲ +" : "▼ −") + esc(fmtRM(Math.abs(d))) +
+      "</span> since " + esc(monthLabel(WM.prevPeriod(q.period)));
+  }
+  var log = guide.log.slice(-12).map(function (l) {
+    var f = function (n) { return l.native ? fmtNative(n, l.currency) : fmtRM(n); };
+    return "<li><span>" + esc(l.name) + "</span><span>" +
+      (l.same ? "unchanged at " + esc(f(l.to)) : (l.from === null ? "new · " : esc(f(l.from)) + " → ") + esc(f(l.to))) + "</span></li>";
+  }).join("");
+  return '<div class="card guide done"><div class="guide-n">' +
+    (guide.log.length ? "All caught up for " : "Nothing to do for ") + esc(monthLabel(q.period)) + "</div>" +
+    '<div class="guide-s">' + (guide.log.length
+      ? guide.log.length + (guide.log.length === 1 ? " figure" : " figures") + " recorded this time."
+      : "Every figure already has an entry for this month.") + "</div>" +
+    (log ? '<ul class="guide-log">' + log + "</ul>" : "") +
+    '<div class="guide-net">Net worth <b>' + esc(fmtRM(pos.net)) + "</b>" + (pos.partial ? '<span class="stale-mark">*</span>' : "") + move + "</div>" +
+    (guide.log.length && undoStack.length ? '<div class="row guide-actions"><button class="btn" id="guideUndo">Undo last</button></div>' : "") +
+    "</div>";
+}
+
+function guideSave(item, same) {
+  var period = guide.period;
+  var balanceEl = $("guideBalance");
+  var raw = same ? (item.prior ? String(item.prior.balance) : "") : balanceEl.value.trim();
+  if (!raw) {
+    balanceEl.classList.add("badfield");
+    balanceEl.focus();
+    toast("Type a figure, or skip it. A blank is not saved as zero.");
+    return;
+  }
+  var ex = item.existing || {};
+  var row = {};
+  row[guideKey(item.kind)] = item.id;
+  row.balance = raw;
+  ["contribution", "withdrawal", "income"].forEach(function (f) {
+    // What is already in this month's entry stays, unless the box for it was filled in.
+    var typed = !same && item.kind === "holding" && $(GUIDE_FIELDS[f]) ? $(GUIDE_FIELDS[f]).value.trim() : "";
+    row[f] = typed !== "" ? typed : (ex[f] === undefined ? null : ex[f]);
+  });
+  if (item.needsRate && !same && $("guideRate") && $("guideRate").value.trim()) row.fxRate = $("guideRate").value.trim();
+
+  var mark = undoSeq;
+  var label = item.name + ", " + monthLabel(period);
+  var res = recordChange(label, period, [item.id], function () {
+    return WM.applyMonth(state, period, [row], deviceId);
+  });
+  if (res.errors.length) {
+    var bad = res.errors[0].field === "fxRate" ? $("guideRate") : (GUIDE_FIELDS[res.errors[0].field] && $(GUIDE_FIELDS[res.errors[0].field])) || balanceEl;
+    if (bad) { bad.classList.add("badfield"); bad.focus(); }
+    toast("That is not a number — " + raw);
+    return;
+  }
+  guide.log.push({ id: item.id, name: item.name, from: item.prior ? item.prior.balance : null,
+    to: WM.parseAmount(raw).value, native: item.needsRate, currency: item.currency, same: !!same });
+  delete guide.draft[item.id];
+  guide.focus = true;
+  commit();
+  toast("Saved " + label, undoSeq !== mark ? undoAction() : null);
+}
 
 // ---- accounts view ---------------------------------------------------------
 
@@ -3800,7 +4098,9 @@ function fillBalanceField(el, monthEl, id, period) {
 
 function writeBalanceIfChanged(el, kind, id, period) {
   if (el.value === (el.getAttribute("data-was") || "")) return { errors: [] };
-  return writeBalance(kind, id, el.value, period);
+  return recordChange(subjectName(id) + ", " + monthLabel(period), period, [id], function () {
+    return writeBalance(kind, id, el.value, period);
+  });
 }
 
 function balanceFieldFor(id, period) {
@@ -3820,7 +4120,9 @@ function saveCell(el) {
   var id = el.getAttribute("data-cell");
   var kind = el.getAttribute("data-cellkind");
   var period = sheetPeriod();
-  var res = writeBalance(kind, id, el.value, period);
+  var mark = undoSeq;
+  var label = subjectName(id) + ", " + monthLabel(period);
+  var res = recordChange(label, period, [id], function () { return writeBalance(kind, id, el.value, period); });
   if (res.errors.length) {
     el.classList.add("badfield");
     toast("That is not a number — " + esc(el.value));
@@ -3829,6 +4131,7 @@ function saveCell(el) {
   el.classList.remove("badfield");
   if (!res.created && !res.updated && !res.deleted) return true;
   commit();
+  toast("Saved " + label, undoSeq !== mark ? undoAction() : null);
   if (pendingCell) {
     var target = document.getElementById(pendingCell);
     pendingCell = null;
@@ -4134,6 +4437,7 @@ $("holdSave").onclick = function () {
   if (fixedPrice.error) holdErrors = holdErrors.concat(["Fixed unit price must be a number"]);
   if (showErrors("holdErr", holdErrors)) return;
   var savedHolding = WM.upsert(state, "holdings", rec, deviceId);
+  var undoMark = undoSeq;
 
   if (!rec.unitBased) {
     var balRes = writeBalanceIfChanged($("h_balance"), "holdingId", savedHolding.id, sheetPeriod());
@@ -4145,7 +4449,7 @@ $("holdSave").onclick = function () {
 
   closeModal("holdModal");
   commit();
-  toast(editing.hold ? "Holding updated" : "Holding added");
+  toast(editing.hold ? "Holding updated" : "Holding added", undoSeq !== undoMark ? undoAction() : null);
 };
 
 $("holdDelete").onclick = function () { removeRecord("holdings", editing.hold, "holdModal", "Holding"); };
@@ -4201,6 +4505,7 @@ $("liabSave").onclick = function () {
   if (showErrors("liabErr", errors)) return;
 
   var savedLiab = WM.upsert(state, "liabilities", rec, deviceId);
+  var undoMark = undoSeq;
 
   var liabBal = writeBalanceIfChanged($("l_balance"), "liabilityId", savedLiab.id, sheetPeriod());
   if (liabBal.errors.length) {
@@ -4247,7 +4552,7 @@ $("liabSave").onclick = function () {
 
   closeModal("liabModal");
   commit();
-  toast(editing.liab ? "Liability updated" : "Liability added");
+  toast(editing.liab ? "Liability updated" : "Liability added", undoSeq !== undoMark ? undoAction() : null);
 };
 
 $("liabDelete").onclick = function () { removeRecord("liabilities", editing.liab, "liabModal", "Liability"); };
@@ -4327,6 +4632,8 @@ Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
     showView(lastTab);
     if (parseDetailHash(location.hash)) replaceAddress(location.pathname + location.search);
     window.scrollTo(0, 0);
+    // Arriving to record the month: the cursor is already in the first box.
+    if (lastTab === "month" && $("guideBalance")) $("guideBalance").focus();
   };
 });
 
@@ -4897,6 +5204,7 @@ function applyImport(text, source) {
 
 function adoptState(incoming) {
   state = incoming;
+  resetUndo();
   if (state.settings && state.settings.theme) {
     document.documentElement.setAttribute("data-theme", state.settings.theme);
   }
@@ -5027,6 +5335,7 @@ $("themeBtn").onclick = function () {
 $("wipeBtn").onclick = function () {
   if (!confirm("Erase all Wealth Master data from this browser? Export first if you want a copy.")) return;
   state = WM.blank();
+  resetUndo();
   commit();
   toast("Everything erased");
 };

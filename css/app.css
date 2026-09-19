@@ -284,6 +284,36 @@ input[type=checkbox]{width:20px;height:20px;min-height:20px;accent-color:var(--a
 .errbox{background:var(--bad-tint);border:.5px solid var(--bad-line);border-radius:10px;padding:10px 13px;font-size:12.5px;color:var(--tx2);margin-bottom:12px;display:none}
 .errbox.on{display:block}
 .errbox ul{margin:0;padding-left:18px;line-height:1.7}
+.snack-act{
+  font:inherit;font-weight:600;color:var(--accent);background:none;border:0;cursor:pointer;
+  min-height:32px;padding:0 6px;border-radius:6px;
+}
+.snack-act:hover{background:var(--surface2)}
+@media(pointer:coarse){.snack-act{min-height:44px;min-width:56px}}
+.snack-act:focus-visible{outline:2px solid var(--accent)}
+.mfull{margin-top:16px}
+.mfull>summary{cursor:pointer;color:var(--tx2);font-size:13px;padding:8px 0}
+.mfull[open]>summary{margin-bottom:8px}
+.guide{padding:18px}
+.guide-p{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--tx2);margin-bottom:8px}
+.guide-bar{height:6px;border-radius:3px;background:var(--surface3);overflow:hidden;margin-bottom:18px}
+.guide-bar i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width .2s}
+.guide-n{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.guide-s{font-size:12.5px;color:var(--tx2);margin-top:2px}
+.guide-prior{font-size:13px;color:var(--tx2);margin:12px 0}
+.guide input{min-height:48px;font-size:18px}
+.guide-main{max-width:460px}
+.guide-more{margin-top:12px}
+.guide-more>summary{cursor:pointer;font-size:12.5px;color:var(--tx2);padding:4px 0}
+.guide-more .mgrid{margin-top:8px;max-width:460px}
+.guide-actions{gap:8px;margin-top:16px;flex-wrap:wrap}
+.guide-hint{margin-top:12px}
+.guide-log{list-style:none;padding:0;margin:14px 0}
+.guide-log li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:.5px solid var(--line);font-size:13px}
+.guide-log li span:last-child{color:var(--tx2);font-variant-numeric:tabular-nums;text-align:right}
+.guide-net{font-size:14px;margin-top:6px}
+.guide-net .up{color:var(--good)}
+.guide-net .dn{color:var(--bad)}
 .mrow{border:.5px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;background:var(--surface)}
 .mrow-h{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .mrow-n{font-weight:500;font-size:13.5px}
