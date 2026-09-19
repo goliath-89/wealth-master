@@ -316,6 +316,12 @@ svg.chart{display:block;width:100%;height:auto;overflow:visible}
   padding:10px 12px;font-size:12px;color:var(--tx);box-shadow:0 6px 20px rgba(0,0,0,.35);
 }
 .hv-tip[hidden]{display:none}
+svg.chart [data-slice]{transition:opacity .12s,transform .12s;transform-origin:150px 110px;outline:none}
+svg.chart.hv-dim [data-slice]:not(.hv-on){opacity:.4}
+svg.chart [data-slice].hv-on{transform:scale(1.04)}
+svg.chart [data-slice]:focus-visible{stroke:var(--tx);stroke-width:2}
+.lg[data-slice]{cursor:default;border-radius:6px;padding:2px 6px;margin:-2px -6px}
+.lg[data-slice].hv-on{background:var(--surface3);color:var(--tx)}
 .hv-h{font-weight:600;font-size:12.5px;margin-bottom:6px}
 .hv-row{display:flex;justify-content:space-between;gap:14px;padding:2px 0;color:var(--tx2);white-space:nowrap}
 .hv-row b{color:var(--tx);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}

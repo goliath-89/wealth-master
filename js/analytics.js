@@ -94,8 +94,14 @@
   // meaningless. Physical assets are included, since they are part of what is owned.
   function allocation(state, period, dimension) {
     var dim = DIMENSIONS[dimension] || DIMENSIONS.class;
-    var buckets = {};
+    var buckets = {}, counts = {}, carried = {};
     var total = 0;
+    function tally(key, amount, stale) {
+      buckets[key] = (buckets[key] || 0) + amount;
+      counts[key] = (counts[key] || 0) + 1;
+      if (stale) carried[key] = true;
+      total += amount;
+    }
 
     nw.contributingHoldings(state).forEach(function (h) {
       // Converted, so a slice is comparable with the others and with net worth. Counting
@@ -105,8 +111,7 @@
       var account = ent.byId(state.accounts, h.accountId);
       var institution = account ? ent.byId(state.institutions, account.institutionId) : null;
       var key = dim.of({ account: account, institution: institution, liquid: account && account.liquid });
-      buckets[key] = (buckets[key] || 0) + pos.balance;
-      total += pos.balance;
+      tally(key, pos.balance, pos.stale);
     });
 
     ent.live(state.assets).forEach(function (a) {
@@ -118,12 +123,14 @@
         : dimension === "currency" ? "MYR"
         : dimension === "shariah" ? "Conventional"
         : "Not protected";
-      buckets[key] = (buckets[key] || 0) + pos.balance;
-      total += pos.balance;
+      tally(key, pos.balance, pos.stale);
     });
 
     var slices = Object.keys(buckets).map(function (k) {
-      return { label: k, value: buckets[k], share: total ? buckets[k] / total * 100 : 0 };
+      return {
+        label: k, value: buckets[k], share: total ? buckets[k] / total * 100 : 0,
+        count: counts[k], partial: !!carried[k]
+      };
     }).sort(function (a, b) { return b.value - a.value; });
 
     return { dimension: dimension, label: dim.label, total: total, slices: slices };
