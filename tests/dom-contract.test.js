@@ -22,7 +22,7 @@ var appJs = fs.readFileSync(path.join(ROOT, "js", "app.js"), "utf8");
 
 // Present in index.html itself, before any script runs.
 var STATIC_IDS = [
-  "a_arch", "a_name", "detailBack", "detailBody", "detailCatChart", "detailCatLegend", "detailCatTitle",
+  "a_arch", "a_name", "monthFull", "monthGuide", "snackAction", "detailBack", "detailBody", "detailCatChart", "detailCatLegend", "detailCatTitle",
   "detailChartNote", "detailChip", "detailDim", "detailDimChart", "detailDimLegend", "detailDimTitle",
   "detailFilter", "detailGroup", "detailHead", "detailList", "detailListTitle", "detailMovers",
   "detailMoversList", "detailPeriod", "detailTrend", "v-detail", "acctSave", "addAssetBtn", "addGoalBtn", "addInstBtn", "addLiabBtn",
@@ -50,7 +50,7 @@ var STATIC_IDS = [
   "scenarioSave", "seriesChart", "seriesLegend", "seriesMetric", "seriesNote", "seriesWrap",
   "set_concentration", "set_expenses", "set_income", "settingsNote", "sheetFileIn", "sheetPeriod", "sheetStatus", "showArchived",
   "snackMsg", "staleNote", "staleWrap", "strat_extra", "strategyResult", "strategyWrap",
-  "taxYear", "themeBtn", "topPeriod", "tree", "undoImportBtn", "v-data", "v-forecast", "v-loans", "v-month", "v-recap", "v-tax", "v-worth",
+  "taxYear", "themeBtn", "wipeBtn", "topPeriod", "tree", "undoImportBtn", "v-data", "v-forecast", "v-loans", "v-month", "v-recap", "v-tax", "v-worth",
   "worthChart", "worthHero", "worthKpis", "worthLines"
 ];
 
@@ -73,6 +73,8 @@ var RENDERED_IDS = {
   "cell_": 'id="cell_',
   // The drill-down draws the same rows a second time, so its ids differ (P7.4).
   "dcell_": 'id="dcell_',
+  // The guided month-end draws its fields per figure (P8).
+  guide: 'id="guide',
   "dopen_": 'id="dopen_'
 };
 

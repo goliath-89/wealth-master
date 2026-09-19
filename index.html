@@ -143,12 +143,16 @@
       <div class="spacer"></div>
       <input type="month" id="periodPick" style="width:auto;min-width:150px">
     </div>
-    <div class="errbox" id="monthErr"></div>
-    <div id="monthRows"></div>
-    <div class="row" id="monthActions" style="margin-top:14px;display:none">
-      <button class="btn pri" id="saveMonthBtn">Save month</button>
-      <span class="note" id="monthSummary"></span>
-    </div>
+    <div id="monthGuide"></div>
+    <details class="mfull" id="monthFull">
+      <summary>Enter every figure at once</summary>
+      <div class="errbox" id="monthErr"></div>
+      <div id="monthRows"></div>
+      <div class="row" id="monthActions" style="margin-top:14px;display:none">
+        <button class="btn pri" id="saveMonthBtn">Save month</button>
+        <span class="note" id="monthSummary"></span>
+      </div>
+    </details>
   </div>
   <div class="sec">
     <details class="warnbox">
@@ -952,7 +956,7 @@
   </div>
 </div>
 
-<div class="snack" id="snack"><span id="snackMsg"></span></div>
+<div class="snack" id="snack" role="status" aria-live="polite"><span id="snackMsg"></span><button type="button" class="snack-act" id="snackAction" hidden></button></div>
 
 <script src="js/schema.js?v=dev"></script>
 <script src="js/store.js?v=dev"></script>
@@ -981,6 +985,7 @@
 <script src="js/recap.js?v=dev"></script>
 <script src="js/chart-hover.js?v=dev"></script>
 <script src="js/drill.js?v=dev"></script>
+<script src="js/monthend.js?v=dev"></script>
 <script src="js/ui-shell.js?v=dev"></script>
 <script src="js/app.js?v=dev"></script>
 </body>
